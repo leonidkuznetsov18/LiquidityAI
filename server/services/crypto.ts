@@ -2,97 +2,24 @@ import axios from 'axios';
 import NodeCache from 'node-cache';
 
 const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
-const COINGECKO_BASE_URL = 'https://pro-api.coingecko.com/api/v3';
-const API_KEY = process.env.COINGECKO_API_KEY;
-
-// Add API key to all CoinGecko requests
-const coingeckoAxios = axios.create({
-  baseURL: COINGECKO_BASE_URL,
-  headers: {
-    'x-cg-pro-api-key': API_KEY
-  }
-});
-
-async function fetchWithRetry(url: string, maxRetries = 3, delay = 1000): Promise<any> {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await coingeckoAxios.get(url);
-      return response.data;
-    } catch (error: any) {
-      console.error(`Attempt ${i + 1} failed:`, error.response?.status, error.response?.data);
-      if (i === maxRetries - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-    }
-  }
-}
-
-export async function getEthereumData(): Promise<CryptoData> {
-  const cacheKey = 'ethereum_data';
-  const cachedData = cache.get(cacheKey);
-
-  if (cachedData) {
-    return cachedData;
-  }
-
-  try {
-    // Get current price data
-    const priceData = await fetchWithRetry(
-      `/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true`
-    );
-
-    // Get historical data
-    const historicalData = await fetchWithRetry(
-      `/coins/ethereum/market_chart?vs_currency=usd&days=1&interval=hourly`
-    );
-
-    const prices24h = historicalData.prices.map((p: number[]) => p[1]);
-    const data = priceData.ethereum;
-
-    const result: CryptoData = {
-      price: data.usd,
-      volume_24h: data.usd_24h_vol,
-      price_change_24h: data.usd_24h_change,
-      market_cap: data.usd_market_cap,
-      prices_24h,
-    };
-
-    cache.set(cacheKey, result);
-    return result;
-  } catch (error) {
-    console.error('Error fetching Ethereum data:', error);
-    throw new Error('Failed to fetch market data');
-  }
-}
+const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
+const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2';
 
 interface CryptoData {
   price: number;
   volume_24h: number;
   price_change_24h: number;
   market_cap: number;
-  prices_24h: number[]; // Array of hourly prices for the last 24 hours
-}
-
-interface NewsItem {
-  title: string;
-  url: string;
-  sentiment: 'positive' | 'negative' | 'neutral';
-}
-
-interface NewsData {
-  news: {
-    headlines: NewsItem[];
-    score: number;
-  };
+  prices_24h: number[];
 }
 
 // Technical Analysis Functions
 function calculateRSI(prices: number[], periods: number = 14): number {
-  if (prices.length < periods) return 50; // Default to neutral if not enough data
+  if (prices.length < periods) return 50;
 
   let gains = 0;
   let losses = 0;
 
-  // Calculate average gains and losses
   for (let i = 1; i < periods; i++) {
     const difference = prices[i] - prices[i - 1];
     if (difference >= 0) {
@@ -123,6 +50,63 @@ function calculateMACD(prices: number[]): { value: number; signal: number } {
   };
 }
 
+function calculateStochastic(prices: number[], period: number = 14): number {
+  if (prices.length < period) return 50;
+
+  const currentPrice = prices[prices.length - 1];
+  const lowestLow = Math.min(...prices.slice(-period));
+  const highestHigh = Math.max(...prices.slice(-period));
+
+  return ((currentPrice - lowestLow) / (highestHigh - lowestLow)) * 100;
+}
+
+function calculateADX(prices: number[], period: number = 14): number {
+  if (prices.length < period + 1) return 50;
+
+  let sumDM = 0;
+  let sumTR = 0;
+
+  for (let i = 1; i < period + 1; i++) {
+    const high = prices[i];
+    const low = prices[i - 1];
+    const prevHigh = prices[i - 1];
+    const prevLow = prices[i - 1];
+
+    const upMove = high - prevHigh;
+    const downMove = prevLow - low;
+
+    const plusDM = upMove > downMove && upMove > 0 ? upMove : 0;
+    const minusDM = downMove > upMove && downMove > 0 ? downMove : 0;
+
+    const trueRange = Math.max(
+      high - low,
+      Math.abs(high - prices[i - 1]),
+      Math.abs(low - prices[i - 1])
+    );
+
+    sumDM += plusDM - minusDM;
+    sumTR += trueRange;
+  }
+
+  return Math.abs((sumDM / sumTR) * 100);
+}
+
+function calculateATR(prices: number[], period: number = 14): number {
+  if (prices.length < period) return 0;
+
+  let sum = 0;
+  for (let i = 1; i < period; i++) {
+    const tr = Math.max(
+      prices[i] - prices[i - 1],
+      Math.abs(prices[i] - prices[i - 1]),
+      Math.abs(prices[i - 1] - prices[i - 2] || 0)
+    );
+    sum += tr;
+  }
+
+  return sum / period;
+}
+
 function calculateEMA(prices: number[], periods: number): number {
   if (prices.length === 0) return 0;
 
@@ -136,7 +120,7 @@ function calculateEMA(prices: number[], periods: number): number {
   return ema;
 }
 
-function calculateBollingerBands(prices: number[]): { upper: number; lower: number; middle: number } {
+function calculateBollingerBands(prices: number[]): { upper: number; middle: number; lower: number } {
   if (prices.length === 0) {
     return { upper: 0, middle: 0, lower: 0 };
   }
@@ -157,6 +141,41 @@ function calculateROC(prices: number[], periods: number = 12): number {
   return ((prices[prices.length - 1] - prices[prices.length - periods]) / prices[prices.length - periods]) * 100;
 }
 
+export async function getEthereumData(): Promise<CryptoData> {
+  const cacheKey = 'ethereum_data';
+  const cachedData = cache.get<CryptoData>(cacheKey);
+
+  if (cachedData) {
+    return cachedData;
+  }
+
+  try {
+    const response = await axios.get(
+      `${COINGECKO_BASE_URL}/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true`
+    );
+
+    const historicalResponse = await axios.get(
+      `${COINGECKO_BASE_URL}/coins/ethereum/market_chart?vs_currency=usd&days=1&interval=hourly`
+    );
+
+    const data = response.data.ethereum;
+    const prices24h = historicalResponse.data.prices.map((p: number[]) => p[1]);
+
+    const result: CryptoData = {
+      price: data.usd,
+      volume_24h: data.usd_24h_vol,
+      price_change_24h: data.usd_24h_change,
+      market_cap: data.usd_market_cap,
+      prices_24h: prices24h,
+    };
+
+    cache.set(cacheKey, result);
+    return result;
+  } catch (error) {
+    console.error('Error fetching Ethereum data:', error);
+    throw error;
+  }
+}
 
 export async function getTechnicalIndicators() {
   try {
@@ -168,17 +187,14 @@ export async function getTechnicalIndicators() {
       throw new Error('No price data available');
     }
 
-    // Calculate Bollinger Bands
+    // Calculate all indicators
     const bb = calculateBollingerBands(prices);
-
-    // Calculate RSI
     const rsi = calculateRSI(prices);
-
-    // Calculate MACD
     const macd = calculateMACD(prices);
-
-    // Calculate Rate of Change
     const roc = calculateROC(prices);
+    const stoch = calculateStochastic(prices);
+    const adx = calculateADX(prices);
+    const atr = calculateATR(prices);
 
     // Calculate Moving Averages
     const ma20 = calculateEMA(prices, 20);
@@ -195,6 +211,21 @@ export async function getTechnicalIndicators() {
           name: 'MACD',
           value: macd.value,
           signal: macd.value > macd.signal ? 'buy' : 'sell',
+        },
+        {
+          name: 'Stochastic',
+          value: stoch,
+          signal: stoch > 80 ? 'sell' : stoch < 20 ? 'buy' : 'neutral',
+        },
+        {
+          name: 'ADX',
+          value: adx,
+          signal: adx > 25 ? 'buy' : adx < 20 ? 'sell' : 'neutral',
+        },
+        {
+          name: 'ATR',
+          value: atr,
+          signal: atr > prices[prices.length - 1] * 0.02 ? 'sell' : 'neutral',
         },
         {
           name: 'Bollinger Bands',
@@ -229,11 +260,60 @@ export async function getTechnicalIndicators() {
     };
   } catch (error) {
     console.error('Error calculating technical indicators:', error);
-    // Return empty indicators if calculations fail
     return {
       indicators: [],
     };
   }
+}
+
+interface NewsItem {
+  title: string;
+  url: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+}
+
+interface NewsData {
+  news: {
+    headlines: NewsItem[];
+    score: number;
+  };
+}
+
+
+function analyzeNewsSentiment(text: string): 'positive' | 'negative' | 'neutral' {
+  const positiveWords = [
+    'launch', 'partnership', 'growth', 'success', 'improve',
+    'upgrade', 'milestone', 'achievement', 'innovation', 'bullish',
+    'adoption', 'advance', 'progress', 'breakthrough', 'support'
+  ];
+
+  const negativeWords = [
+    'issue', 'delay', 'problem', 'bug', 'vulnerability',
+    'hack', 'decline', 'suspend', 'concern', 'bearish',
+    'crash', 'risk', 'warning', 'threat', 'crisis'
+  ];
+
+  const lowerText = text.toLowerCase();
+  const posCount = positiveWords.filter(word => lowerText.includes(word)).length;
+  const negCount = negativeWords.filter(word => lowerText.includes(word)).length;
+
+  if (posCount > negCount) return 'positive';
+  if (negCount > posCount) return 'negative';
+  return 'neutral';
+}
+
+function calculateOverallSentiment(headlines: NewsItem[]): number {
+  if (headlines.length === 0) return 50;
+
+  const sentimentScores = headlines.map(headline => {
+    switch (headline.sentiment) {
+      case 'positive': return 1;
+      case 'negative': return 0;
+      default: return 0.5;
+    }
+  });
+
+  return (sentimentScores.reduce((a, b) => a + b, 0) / headlines.length) * 100;
 }
 
 export async function getCryptoNews(): Promise<NewsData> {
@@ -277,40 +357,3 @@ export async function getCryptoNews(): Promise<NewsData> {
     };
   }
 }
-
-function analyzeNewsSentiment(text: string): 'positive' | 'negative' | 'neutral' {
-  const positiveWords = [
-    'launch', 'partnership', 'growth', 'success', 'improve',
-    'upgrade', 'milestone', 'achievement', 'innovation', 'bullish',
-    'adoption', 'advance', 'progress', 'breakthrough', 'support'
-  ];
-
-  const negativeWords = [
-    'issue', 'delay', 'problem', 'bug', 'vulnerability',
-    'hack', 'decline', 'suspend', 'concern', 'bearish',
-    'crash', 'risk', 'warning', 'threat', 'crisis'
-  ];
-
-  const lowerText = text.toLowerCase();
-  const posCount = positiveWords.filter(word => lowerText.includes(word)).length;
-  const negCount = negativeWords.filter(word => lowerText.includes(word)).length;
-
-  if (posCount > negCount) return 'positive';
-  if (negCount > posCount) return 'negative';
-  return 'neutral';
-}
-
-function calculateOverallSentiment(headlines: NewsItem[]): number {
-  if (headlines.length === 0) return 50;
-
-  const sentimentScores = headlines.map(headline => {
-    switch (headline.sentiment) {
-      case 'positive': return 1;
-      case 'negative': return 0;
-      default: return 0.5;
-    }
-  });
-
-  return (sentimentScores.reduce((a, b) => a + b, 0) / headlines.length) * 100;
-}
-const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2';
