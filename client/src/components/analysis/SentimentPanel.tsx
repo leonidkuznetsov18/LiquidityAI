@@ -3,7 +3,8 @@ import { Progress } from "@/components/ui/progress";
 import { useSentiment } from "@/hooks/useSentiment";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SiCoinmarketcap } from "react-icons/si";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function SentimentPanel() {
   const { data: sentiment, isLoading } = useSentiment();
@@ -21,6 +22,31 @@ export default function SentimentPanel() {
     );
   }
 
+  const getSentimentIcon = (sentiment: 'positive' | 'negative' | 'neutral') => {
+    switch (sentiment) {
+      case 'positive':
+        return <TrendingUp className="h-4 w-4 text-green-500" />;
+      case 'negative':
+        return <TrendingDown className="h-4 w-4 text-red-500" />;
+      default:
+        return <Minus className="h-4 w-4 text-yellow-500" />;
+    }
+  };
+
+  const getSentimentBadge = (sentiment: 'positive' | 'negative' | 'neutral') => {
+    const variants: Record<'positive' | 'negative' | 'neutral', string> = {
+      positive: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+      negative: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+      neutral: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+    };
+
+    return (
+      <Badge variant="outline" className={`${variants[sentiment]} ml-2`}>
+        {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}
+      </Badge>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">Market Sentiment</h2>
@@ -29,9 +55,12 @@ export default function SentimentPanel() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <SiCoinmarketcap className="h-4 w-4" />
-            <span>Market Sentiment</span>
+            <span>Overall Sentiment</span>
           </div>
-          <Progress value={sentiment?.news.score ? sentiment.news.score * 100 : 0} className="h-2" />
+          <Progress 
+            value={sentiment?.news.score ? sentiment.news.score * 100 : 0} 
+            className="h-2" 
+          />
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>Bearish</span>
             <span>Bullish</span>
@@ -39,23 +68,26 @@ export default function SentimentPanel() {
         </div>
 
         <div className="bg-card rounded-lg p-4">
-          <h3 className="font-medium mb-4">Latest News</h3>
-          <div className="space-y-3">
+          <h3 className="font-medium mb-4">Latest Crypto News</h3>
+          <div className="space-y-4">
             {sentiment?.news.headlines.map((headline, i) => (
               <a
                 key={i}
                 href={headline.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`
-                  flex items-center gap-2 text-sm hover:underline
-                  ${headline.sentiment === 'positive' ? 'text-green-500' : ''}
-                  ${headline.sentiment === 'negative' ? 'text-red-500' : ''}
-                  ${headline.sentiment === 'neutral' ? 'text-muted-foreground' : ''}
-                `}
+                className="block p-3 rounded-lg hover:bg-accent/50 transition-colors"
               >
-                <span className="line-clamp-2 flex-1">{headline.title}</span>
-                <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-50" />
+                <div className="flex items-start gap-3">
+                  {getSentimentIcon(headline.sentiment)}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium line-clamp-2">
+                      {headline.title}
+                    </p>
+                    {getSentimentBadge(headline.sentiment)}
+                  </div>
+                  <ExternalLink className="h-4 w-4 flex-shrink-0 opacity-50" />
+                </div>
               </a>
             ))}
           </div>

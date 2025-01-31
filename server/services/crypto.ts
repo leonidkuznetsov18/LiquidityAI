@@ -3,6 +3,7 @@ import NodeCache from 'node-cache';
 
 const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
+const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2';
 
 interface CryptoData {
   price: number;
@@ -85,17 +86,17 @@ export async function getCryptoNews(): Promise<NewsData> {
   }
 
   try {
-    // Using CoinGecko's companies public treasury API as a news source
+    // Fetch news from CryptoCompare
     const response = await axios.get(
-      `${COINGECKO_BASE_URL}/companies/public_treasury/ethereum`
+      `${CRYPTOCOMPARE_BASE_URL}/news/?lang=EN&categories=ETH`
     );
 
-    const newsItems = response.data.companies
-      .slice(0, 5) // Take only top 5 companies
-      .map((company: any) => ({
-        title: `${company.name} holds ${company.total_holdings} ETH (${company.total_current_value_usd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })})`,
-        url: `https://www.coingecko.com/en/companies/${company.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-        sentiment: analyzeNewsSentiment(company.total_holdings, company.total_current_value_usd)
+    const newsItems = response.data.Data
+      .slice(0, 5) // Take only top 5 news items
+      .map((article: any) => ({
+        title: article.title,
+        url: article.url,
+        sentiment: analyzeNewsSentiment(article.title + ' ' + article.body)
       }));
 
     const result: NewsData = {
@@ -113,10 +114,25 @@ export async function getCryptoNews(): Promise<NewsData> {
   }
 }
 
-function analyzeNewsSentiment(holdings: number, value: number): 'positive' | 'negative' | 'neutral' {
-  // Simple sentiment analysis based on holdings and value
-  if (holdings > 1000 && value > 1000000) return 'positive';
-  if (holdings < 100 || value < 100000) return 'negative';
+function analyzeNewsSentiment(text: string): 'positive' | 'negative' | 'neutral' {
+  const positiveWords = [
+    'launch', 'partnership', 'growth', 'success', 'improve',
+    'upgrade', 'milestone', 'achievement', 'innovation', 'bullish',
+    'adoption', 'advance', 'progress', 'breakthrough', 'support'
+  ];
+
+  const negativeWords = [
+    'issue', 'delay', 'problem', 'bug', 'vulnerability',
+    'hack', 'decline', 'suspend', 'concern', 'bearish',
+    'crash', 'risk', 'warning', 'threat', 'crisis'
+  ];
+
+  const lowerText = text.toLowerCase();
+  const posCount = positiveWords.filter(word => lowerText.includes(word)).length;
+  const negCount = negativeWords.filter(word => lowerText.includes(word)).length;
+
+  if (posCount > negCount) return 'positive';
+  if (negCount > posCount) return 'negative';
   return 'neutral';
 }
 
