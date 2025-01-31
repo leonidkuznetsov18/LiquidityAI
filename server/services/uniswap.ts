@@ -32,18 +32,27 @@ const POOL_ABI = [
   'function positions(bytes32) external view returns (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)',
 ];
 
-function calculateTokenAmounts(liquidity: bigint, sqrtPriceX96: bigint, tickLower: number, tickUpper: number) {
-  const Q96 = 2n ** 96n;
+function calculateTokenAmounts(liquidity: string, sqrtPriceX96: string, tickLower: number, tickUpper: number) {
+  try {
+    const liquidityBN = BigInt(liquidity);
+    const sqrtPriceX96BN = BigInt(sqrtPriceX96);
+    const Q96 = BigInt(2) ** BigInt(96);
 
-  // Calculate token amounts based on the liquidity formula
-  // This is a simplified calculation and might not be 100% accurate
-  const amount0 = (liquidity * Q96) / sqrtPriceX96;
-  const amount1 = liquidity * sqrtPriceX96 / Q96;
+    // Calculate token amounts based on the liquidity formula
+    const amount0 = (liquidityBN * Q96) / sqrtPriceX96BN;
+    const amount1 = (liquidityBN * sqrtPriceX96BN) / Q96;
 
-  return {
-    amount0: amount0.toString(),
-    amount1: amount1.toString(),
-  };
+    return {
+      amount0: amount0.toString(),
+      amount1: amount1.toString(),
+    };
+  } catch (error) {
+    console.error('Error calculating token amounts:', error);
+    return {
+      amount0: '0',
+      amount1: '0',
+    };
+  }
 }
 
 export async function getUniswapPools() {
@@ -96,21 +105,23 @@ export async function getUniswapPools() {
             poolContract.liquidity(),
           ]);
 
-          const sqrtPriceX96 = slot0[0];
-          const tick = slot0[1];
+          const sqrtPriceX96 = slot0[0].toString();
+          const tick = Number(slot0[1]);
 
           // Calculate token amounts
           const { amount0, amount1 } = calculateTokenAmounts(
-            BigInt(liquidity.toString()),
-            BigInt(sqrtPriceX96.toString()),
+            liquidity.toString(),
+            sqrtPriceX96,
             Math.floor(tick / 60) * 60, // Approximate tick range
             Math.ceil(tick / 60) * 60
           );
 
-          // Calculate prices
-          const token0Price = (Number(sqrtPriceX96) * Number(sqrtPriceX96) * (10 ** token1.decimals)) / 
-                            ((2 ** 192) * (10 ** token0.decimals));
+          // Calculate prices using decimal conversion to avoid floating-point issues
+          const price0DecimalsFactor = BigInt(10) ** BigInt(pair.token1.decimals);
+          const price1DecimalsFactor = BigInt(10) ** BigInt(pair.token0.decimals);
 
+          const sqrtPriceX96Squared = (BigInt(sqrtPriceX96) * BigInt(sqrtPriceX96));
+          const token0Price = Number(sqrtPriceX96Squared * price0DecimalsFactor / (BigInt(2) ** BigInt(192)) / price1DecimalsFactor);
           const token1Price = 1 / token0Price;
 
           pools.push({
