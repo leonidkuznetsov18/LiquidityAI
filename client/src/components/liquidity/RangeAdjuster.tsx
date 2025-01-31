@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Range, getTrackBackground } from "react-range";
 
 interface Props {
   predictions?: {
@@ -92,81 +93,48 @@ export default function RangeAdjuster({ predictions }: Props) {
             </div>
           </div>
 
-          <div className="pt-4 relative h-12">
-            {/* Track background */}
-            <div className="absolute inset-y-1/2 w-full h-1 -translate-y-1/2 bg-muted rounded-full">
-              {/* Active range */}
-              <div 
-                className="absolute h-full bg-primary rounded-full"
-                style={{
-                  left: `${((range[0] - minPrice) / (maxPrice - minPrice)) * 100}%`,
-                  right: `${100 - ((range[1] - minPrice) / (maxPrice - minPrice)) * 100}%`
-                }}
-              />
-            </div>
-
-            {/* Lower handle */}
-            <div 
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-primary border-2 border-background rounded-full cursor-pointer"
-              style={{
-                left: `${((range[0] - minPrice) / (maxPrice - minPrice)) * 100}%`
-              }}
-              onMouseDown={(e) => {
-                const startX = e.pageX;
-                const startValue = range[0];
-
-                const handleMouseMove = (e: MouseEvent) => {
-                  const dx = e.pageX - startX;
-                  const range = maxPrice - minPrice;
-                  const newValue = Math.max(
-                    minPrice,
-                    Math.min(range[1] - 10, startValue + (dx / window.innerWidth) * range)
-                  );
-                  setRange([newValue, range[1]]);
-                };
-
-                const handleMouseUp = () => {
-                  window.removeEventListener('mousemove', handleMouseMove);
-                  window.removeEventListener('mouseup', handleMouseUp);
-                };
-
-                window.addEventListener('mousemove', handleMouseMove);
-                window.addEventListener('mouseup', handleMouseUp);
-              }}
+          <div className="py-8">
+            <Range
+              values={range}
+              step={0.01}
+              min={minPrice}
+              max={maxPrice}
+              onChange={(values) => setRange(values as [number, number])}
+              renderTrack={({ props, children }) => (
+                <div
+                  onMouseDown={props.onMouseDown}
+                  onTouchStart={props.onTouchStart}
+                  className="h-8 flex w-full"
+                  style={props.style}
+                >
+                  <div
+                    ref={props.ref}
+                    className="h-1 w-full rounded-full self-center"
+                    style={{
+                      background: getTrackBackground({
+                        values: range,
+                        colors: ["#f1f5f9", "hsl(var(--primary))", "#f1f5f9"],
+                        min: minPrice,
+                        max: maxPrice,
+                      }),
+                    }}
+                  >
+                    {children}
+                  </div>
+                </div>
+              )}
+              renderThumb={({ props }) => (
+                <div
+                  {...props}
+                  className="h-4 w-4 rounded-full bg-primary border-2 border-background focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-opacity-75"
+                  style={{
+                    ...props.style,
+                    boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+                  }}
+                />
+              )}
             />
-
-            {/* Upper handle */}
-            <div 
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-primary border-2 border-background rounded-full cursor-pointer"
-              style={{
-                left: `${((range[1] - minPrice) / (maxPrice - minPrice)) * 100}%`
-              }}
-              onMouseDown={(e) => {
-                const startX = e.pageX;
-                const startValue = range[1];
-
-                const handleMouseMove = (e: MouseEvent) => {
-                  const dx = e.pageX - startX;
-                  const range = maxPrice - minPrice;
-                  const newValue = Math.max(
-                    range[0] + 10,
-                    Math.min(maxPrice, startValue + (dx / window.innerWidth) * range)
-                  );
-                  setRange([range[0], newValue]);
-                };
-
-                const handleMouseUp = () => {
-                  window.removeEventListener('mousemove', handleMouseMove);
-                  window.removeEventListener('mouseup', handleMouseUp);
-                };
-
-                window.addEventListener('mousemove', handleMouseMove);
-                window.addEventListener('mouseup', handleMouseUp);
-              }}
-            />
-
-            {/* Price labels */}
-            <div className="absolute w-full flex justify-between mt-6 text-sm text-muted-foreground">
+            <div className="flex justify-between mt-2 text-sm text-muted-foreground">
               <span>${minPrice.toFixed(2)}</span>
               <span>${maxPrice.toFixed(2)}</span>
             </div>
