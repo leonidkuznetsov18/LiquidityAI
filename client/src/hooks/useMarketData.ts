@@ -5,6 +5,8 @@ export interface MarketData {
     name: string;
     value: number;
     signal: 'buy' | 'sell' | 'neutral';
+    description: string; // Added description for tooltips
+    learnMoreUrl: string; // Added URL for detailed explanation
   }>;
 }
 
