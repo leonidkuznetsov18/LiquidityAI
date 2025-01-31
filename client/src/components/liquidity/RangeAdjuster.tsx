@@ -1,7 +1,7 @@
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -19,6 +19,13 @@ export default function RangeAdjuster({ predictions }: Props) {
     predictions?.rangeLow || 1800,
     predictions?.rangeHigh || 2200,
   ]);
+
+  // Update range when predictions change
+  useEffect(() => {
+    if (predictions) {
+      setRange([predictions.rangeLow, predictions.rangeHigh]);
+    }
+  }, [predictions]);
 
   const handleApply = async () => {
     try {
@@ -45,6 +52,10 @@ export default function RangeAdjuster({ predictions }: Props) {
     }
   };
 
+  // Calculate min and max based on current price range
+  const minPrice = predictions ? Math.floor(predictions.rangeLow * 0.8) : 1500;
+  const maxPrice = predictions ? Math.ceil(predictions.rangeHigh * 1.2) : 2500;
+
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">Liquidity Range</h2>
@@ -53,30 +64,50 @@ export default function RangeAdjuster({ predictions }: Props) {
         <div className="space-y-4">
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="text-sm text-muted-foreground">Lower Bound</label>
+              <label className="text-sm text-muted-foreground">Lower Bound ($)</label>
               <Input
                 type="number"
-                value={range[0]}
-                onChange={(e) => setRange([+e.target.value, range[1]])}
+                value={range[0].toFixed(2)}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value);
+                  if (!isNaN(value) && value < range[1]) {
+                    setRange([value, range[1]]);
+                  }
+                }}
+                className="font-mono"
               />
             </div>
             <div className="flex-1">
-              <label className="text-sm text-muted-foreground">Upper Bound</label>
+              <label className="text-sm text-muted-foreground">Upper Bound ($)</label>
               <Input
                 type="number"
-                value={range[1]}
-                onChange={(e) => setRange([range[0], +e.target.value])}
+                value={range[1].toFixed(2)}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value);
+                  if (!isNaN(value) && value > range[0]) {
+                    setRange([range[0], value]);
+                  }
+                }}
+                className="font-mono"
               />
             </div>
           </div>
 
-          <Slider
-            value={range}
-            min={1500}
-            max={2500}
-            step={1}
-            onValueChange={(value) => setRange(value as [number, number])}
-          />
+          <div className="pt-4">
+            <Slider
+              value={range}
+              min={minPrice}
+              max={maxPrice}
+              step={1}
+              minStepsBetweenThumbs={10}
+              onValueChange={(value) => setRange(value as [number, number])}
+              className="my-4"
+            />
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>${minPrice}</span>
+              <span>${maxPrice}</span>
+            </div>
+          </div>
         </div>
 
         <div className="flex gap-4">
