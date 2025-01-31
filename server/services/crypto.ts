@@ -94,7 +94,7 @@ export async function getCryptoNews(): Promise<NewsData> {
       .slice(0, 5) // Take only top 5 companies
       .map((company: any) => ({
         title: `${company.name} holds ${company.total_holdings} ETH (${company.total_current_value_usd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })})`,
-        url: `https://www.coingecko.com/en/companies/${company.name.toLowerCase().replace(/\s+/g, '-')}`,
+        url: `https://www.coingecko.com/en/companies/${company.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
         sentiment: analyzeNewsSentiment(company.total_holdings, company.total_current_value_usd)
       }));
 
