@@ -52,10 +52,12 @@ export function registerRoutes(app: Express): Server {
   // Uniswap Pools API
   app.get('/api/uniswap/pools', async (_req, res) => {
     try {
-      const pools = await getUniswapPools();
+      const { pools } = await getUniswapPools();
       res.json({ pools });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch Uniswap pools' });
+      console.error('Error in /api/uniswap/pools:', error);
+      // Send empty pools instead of error
+      res.json({ pools: [] });
     }
   });
 

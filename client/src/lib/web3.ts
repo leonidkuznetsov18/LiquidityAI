@@ -31,12 +31,8 @@ export async function connectWallet(): Promise<string | null> {
 }
 
 export async function disconnectWallet(): Promise<void> {
-  if (typeof window === 'undefined' || !window.ethereum) return;
-
   // Note: MetaMask doesn't actually have a "disconnect" method
-  // Instead, we just clear our local state
-  window.ethereum.selectedAddress = null;
-
+  // We just notify the user of disconnection
   toast({
     title: "Disconnected",
     description: "Wallet disconnected successfully",
@@ -64,7 +60,6 @@ declare global {
   interface Window {
     ethereum?: {
       request: (args: { method: string; }) => Promise<string[]>;
-      selectedAddress?: string | null;
       on: (event: string, callback: (accounts: string[]) => void) => void;
       removeListener: (event: string, callback: (accounts: string[]) => void) => void;
     };

@@ -74,12 +74,17 @@ export async function getUniswapPools() {
   const cachedPools = cache.get(cacheKey);
 
   if (cachedPools) {
-    return cachedPools;
+    return { pools: cachedPools };
   }
 
   try {
     // Fetch top pools from Graph API
     const data: any = await graphClient.request(POOLS_QUERY);
+    if (!data || !data.pools) {
+      console.warn('No pools data received from Graph API');
+      return { pools: [] };
+    }
+
     const graphPools = data.pools;
     const provider = new ethers.JsonRpcProvider(INFURA_URL);
     const pools = [];
@@ -109,7 +114,7 @@ export async function getUniswapPools() {
 
         // Fetch current pool state
         const [slot0] = await Promise.all([
-          poolContract.slot0()
+          poolContract.slot0(),
         ]);
 
         // Convert values to appropriate format
@@ -140,9 +145,10 @@ export async function getUniswapPools() {
       cache.set(cacheKey, pools);
     }
 
-    return pools;
+    return { pools };
   } catch (error) {
     console.error('Failed to fetch Uniswap pools:', error);
-    throw error;
+    // Return an empty array instead of throwing
+    return { pools: [] };
   }
 }
