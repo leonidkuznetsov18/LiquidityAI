@@ -1,4 +1,3 @@
-import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
@@ -93,21 +92,81 @@ export default function RangeAdjuster({ predictions }: Props) {
             </div>
           </div>
 
-          <div className="pt-4">
-            <Slider
-              value={[range[0], range[1]]}
-              min={minPrice}
-              max={maxPrice}
-              step={1}
-              minStepsBetweenThumbs={10}
-              onValueChange={(values) => {
-                if (Array.isArray(values) && values.length === 2) {
-                  setRange([values[0], values[1]]);
-                }
+          <div className="pt-4 relative h-12">
+            {/* Track background */}
+            <div className="absolute inset-y-1/2 w-full h-1 -translate-y-1/2 bg-muted rounded-full">
+              {/* Active range */}
+              <div 
+                className="absolute h-full bg-primary rounded-full"
+                style={{
+                  left: `${((range[0] - minPrice) / (maxPrice - minPrice)) * 100}%`,
+                  right: `${100 - ((range[1] - minPrice) / (maxPrice - minPrice)) * 100}%`
+                }}
+              />
+            </div>
+
+            {/* Lower handle */}
+            <div 
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-primary border-2 border-background rounded-full cursor-pointer"
+              style={{
+                left: `${((range[0] - minPrice) / (maxPrice - minPrice)) * 100}%`
               }}
-              className="my-4"
+              onMouseDown={(e) => {
+                const startX = e.pageX;
+                const startValue = range[0];
+
+                const handleMouseMove = (e: MouseEvent) => {
+                  const dx = e.pageX - startX;
+                  const range = maxPrice - minPrice;
+                  const newValue = Math.max(
+                    minPrice,
+                    Math.min(range[1] - 10, startValue + (dx / window.innerWidth) * range)
+                  );
+                  setRange([newValue, range[1]]);
+                };
+
+                const handleMouseUp = () => {
+                  window.removeEventListener('mousemove', handleMouseMove);
+                  window.removeEventListener('mouseup', handleMouseUp);
+                };
+
+                window.addEventListener('mousemove', handleMouseMove);
+                window.addEventListener('mouseup', handleMouseUp);
+              }}
             />
-            <div className="flex justify-between text-sm text-muted-foreground">
+
+            {/* Upper handle */}
+            <div 
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-primary border-2 border-background rounded-full cursor-pointer"
+              style={{
+                left: `${((range[1] - minPrice) / (maxPrice - minPrice)) * 100}%`
+              }}
+              onMouseDown={(e) => {
+                const startX = e.pageX;
+                const startValue = range[1];
+
+                const handleMouseMove = (e: MouseEvent) => {
+                  const dx = e.pageX - startX;
+                  const range = maxPrice - minPrice;
+                  const newValue = Math.max(
+                    range[0] + 10,
+                    Math.min(maxPrice, startValue + (dx / window.innerWidth) * range)
+                  );
+                  setRange([range[0], newValue]);
+                };
+
+                const handleMouseUp = () => {
+                  window.removeEventListener('mousemove', handleMouseMove);
+                  window.removeEventListener('mouseup', handleMouseUp);
+                };
+
+                window.addEventListener('mousemove', handleMouseMove);
+                window.addEventListener('mouseup', handleMouseUp);
+              }}
+            />
+
+            {/* Price labels */}
+            <div className="absolute w-full flex justify-between mt-6 text-sm text-muted-foreground">
               <span>${minPrice.toFixed(2)}</span>
               <span>${maxPrice.toFixed(2)}</span>
             </div>
