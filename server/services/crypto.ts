@@ -53,15 +53,7 @@ export async function getEthereumData(): Promise<CryptoData> {
   }
 }
 
-interface TechnicalIndicators {
-  indicators: Array<{
-    name: string;
-    value: number;
-    signal: 'buy' | 'sell' | 'neutral';
-  }>;
-}
-
-export async function getTechnicalIndicators(): Promise<TechnicalIndicators> {
+export async function getTechnicalIndicators() {
   const data = await getEthereumData();
 
   // Calculate basic technical indicators
@@ -93,24 +85,27 @@ export async function getCryptoNews(): Promise<NewsData> {
   }
 
   try {
+    // Using CoinGecko's status updates endpoint which includes news and updates
     const response = await axios.get(
-      `${COINGECKO_BASE_URL}/search/trending`
+      `${COINGECKO_BASE_URL}/status_updates?category=general&per_page=100&project_type=coin`
     );
 
-    // Extract trending coins and create news items with sentiment
-    const trendingCoins = response.data.coins.slice(0, 5); // Limit to top 5
-    const headlines = trendingCoins.map((coin: any) => {
-      const title = `${coin.item.name} (${coin.item.symbol.toUpperCase()}) is trending with market cap rank #${coin.item.market_cap_rank}`;
-      const url = `https://www.coingecko.com/en/coins/${coin.item.id}`;
-      // Determine sentiment based on price change and market cap rank
-      const sentiment = determineNewsSentiment(coin.item);
-      return { title, url, sentiment };
-    });
+    const newsItems = response.data.status_updates
+      .filter((update: any) => update.description && update.description.length > 20)
+      .slice(0, 5) // Take only top 5 news items
+      .map((update: any) => {
+        const title = update.description.slice(0, 100) + (update.description.length > 100 ? '...' : '');
+        return {
+          title,
+          url: update.project.links?.homepage?.[0] || '', // Use project homepage as fallback
+          sentiment: analyzeNewsSentiment(update.description)
+        };
+      });
 
     const result: NewsData = {
       news: {
-        headlines,
-        score: calculateOverallSentiment(headlines),
+        headlines: newsItems,
+        score: calculateOverallSentiment(newsItems),
       }
     };
 
@@ -122,13 +117,16 @@ export async function getCryptoNews(): Promise<NewsData> {
   }
 }
 
-function determineNewsSentiment(coinItem: any): 'positive' | 'negative' | 'neutral' {
-  // Consider market cap rank for sentiment
-  // Lower rank (closer to 1) is generally positive
-  const rank = coinItem.market_cap_rank;
+function analyzeNewsSentiment(text: string): 'positive' | 'negative' | 'neutral' {
+  const positiveWords = ['launch', 'partnership', 'growth', 'success', 'improve', 'upgrade', 'milestone', 'achievement', 'innovation'];
+  const negativeWords = ['issue', 'delay', 'problem', 'bug', 'vulnerability', 'hack', 'decline', 'suspend', 'concern'];
 
-  if (rank <= 20) return 'positive';
-  if (rank > 100) return 'negative';
+  const lowerText = text.toLowerCase();
+  const posCount = positiveWords.filter(word => lowerText.includes(word)).length;
+  const negCount = negativeWords.filter(word => lowerText.includes(word)).length;
+
+  if (posCount > negCount) return 'positive';
+  if (negCount > posCount) return 'negative';
   return 'neutral';
 }
 
@@ -141,6 +139,5 @@ function calculateOverallSentiment(headlines: NewsItem[]): number {
     }
   });
 
-  const average = sentimentScores.reduce((a, b) => a + b, 0) / sentimentScores.length;
-  return average;
+  return sentimentScores.reduce((a, b) => a + b, 0) / sentimentScores.length;
 }

@@ -39,7 +39,7 @@ export default function SentimentPanel() {
         </div>
 
         <div className="bg-card rounded-lg p-4">
-          <h3 className="font-medium mb-4">Trending Updates</h3>
+          <h3 className="font-medium mb-4">Latest News</h3>
           <div className="space-y-3">
             {sentiment?.news.headlines.map((headline, i) => (
               <a
@@ -54,7 +54,7 @@ export default function SentimentPanel() {
                   ${headline.sentiment === 'neutral' ? 'text-muted-foreground' : ''}
                 `}
               >
-                <span className="line-clamp-1 flex-1">{headline.title}</span>
+                <span className="line-clamp-2 flex-1">{headline.title}</span>
                 <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-50" />
               </a>
             ))}
