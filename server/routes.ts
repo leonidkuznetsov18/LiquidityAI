@@ -44,11 +44,7 @@ export function registerRoutes(app: Express): Server {
       const data = await getTechnicalIndicators();
       res.json(data);
     } catch (error) {
-      console.error('Market data error:', error);
-      res.status(500).json({ 
-        error: 'Failed to fetch market data',
-        indicators: [] // Return empty indicators on error
-      });
+      res.status(500).json({ error: 'Failed to fetch market data' });
     }
   });
 
