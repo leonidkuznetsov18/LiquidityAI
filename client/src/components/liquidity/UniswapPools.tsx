@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { connectWallet } from "@/lib/web3";
 import { Loader2 } from "lucide-react";
-import { formatEther, parseEther } from "ethers";
+import { formatEther } from "ethers";
 
 interface Pool {
   id: string;
@@ -28,6 +28,7 @@ export default function UniswapPools() {
     if (window.ethereum && window.ethereum.selectedAddress) {
       setAddress(window.ethereum.selectedAddress);
       setIsConnected(true);
+      fetchPools();
     }
   }, []);
 
@@ -53,6 +54,9 @@ export default function UniswapPools() {
     setIsLoading(true);
     try {
       const response = await fetch('/api/uniswap/pools');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       setPools(data.pools);
     } catch (error) {
@@ -67,26 +71,48 @@ export default function UniswapPools() {
     }
   };
 
+  const handleRefresh = () => {
+    if (isConnected) {
+      fetchPools();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Uniswap V3 Pools</h2>
-        <Button
-          onClick={handleConnect}
-          variant={isConnected ? "outline" : "default"}
-        >
-          {isConnected ? 
-            `Connected: ${address?.slice(0, 6)}...${address?.slice(-4)}` : 
-            "Connect Wallet"
-          }
-        </Button>
+        <div className="flex gap-2">
+          {isConnected && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Refresh"
+              )}
+            </Button>
+          )}
+          <Button
+            onClick={handleConnect}
+            variant={isConnected ? "outline" : "default"}
+          >
+            {isConnected ? 
+              `Connected: ${address?.slice(0, 6)}...${address?.slice(-4)}` : 
+              "Connect Wallet"
+            }
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
-      ) : (
+      ) : pools.length > 0 ? (
         <div className="grid gap-4">
           {pools.map((pool) => (
             <Card key={pool.id} className="p-4">
@@ -111,6 +137,26 @@ export default function UniswapPools() {
             </Card>
           ))}
         </div>
+      ) : (
+        <Card className="p-6 text-center">
+          {isConnected ? (
+            <>
+              <p className="text-muted-foreground">No pools found</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                className="mt-4"
+              >
+                Try Again
+              </Button>
+            </>
+          ) : (
+            <p className="text-muted-foreground">
+              Connect your wallet to view Uniswap V3 pools
+            </p>
+          )}
+        </Card>
       )}
     </div>
   );
