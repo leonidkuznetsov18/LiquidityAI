@@ -2,7 +2,7 @@ import { toast } from "@/hooks/use-toast";
 
 export async function connectWallet(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
-  
+
   // Check if MetaMask is installed
   if (!window.ethereum) {
     toast({
@@ -35,6 +35,7 @@ declare global {
   interface Window {
     ethereum?: {
       request: (args: { method: string; }) => Promise<string[]>;
+      selectedAddress?: string | null;
       on: (event: string, callback: (accounts: string[]) => void) => void;
       removeListener: (event: string, callback: (accounts: string[]) => void) => void;
     };

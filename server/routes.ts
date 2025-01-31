@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
 import { getEthereumData, getTechnicalIndicators, getCryptoNews, generatePredictions } from './services/crypto';
+import { getUniswapPools } from './services/uniswap';
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
@@ -48,7 +49,17 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // AI Predictions API (using technical analysis for range calculation)
+  // Uniswap Pools API
+  app.get('/api/uniswap/pools', async (_req, res) => {
+    try {
+      const pools = await getUniswapPools();
+      res.json({ pools });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch Uniswap pools' });
+    }
+  });
+
+  // AI Predictions API
   app.get('/api/predictions', async (_req, res) => {
     try {
       const predictions = await generatePredictions();
