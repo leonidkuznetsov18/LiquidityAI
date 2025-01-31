@@ -1,7 +1,8 @@
-import { Pool, computePoolAddress } from '@uniswap/v3-sdk';
+import { Pool, computePoolAddress, tickToPrice } from '@uniswap/v3-sdk';
 import { Token } from '@uniswap/sdk-core';
 import { ethers } from 'ethers';
 import NodeCache from 'node-cache';
+import { GraphQLClient } from 'graphql-request';
 
 const cache = new NodeCache({ stdTTL: 300 }); // Cache for 5 minutes
 const INFURA_URL = `https://mainnet.infura.io/v3/${process.env.INFURA_PROJECT_ID}`;
@@ -9,21 +10,23 @@ const INFURA_URL = `https://mainnet.infura.io/v3/${process.env.INFURA_PROJECT_ID
 // Uniswap V3 Factory address
 const FACTORY_ADDRESS = '0x1F98431c8aD98523631AE4a59f267346ea31F984';
 
-const POPULAR_PAIRS = [
-  {
-    token0: {
-      address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
-      symbol: 'WETH',
-      decimals: 18,
-    },
-    token1: {
-      address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC
-      symbol: 'USDC',
-      decimals: 6,
-    },
-    feeTiers: [500, 3000, 10000], // 0.05%, 0.3%, 1%
+// Uniswap V3 Graph API
+const UNISWAP_GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3';
+const graphClient = new GraphQLClient(UNISWAP_GRAPH_URL);
+
+// Popular tokens for tracking
+const POPULAR_TOKENS = {
+  WETH: {
+    address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+    symbol: 'WETH',
+    decimals: 18,
   },
-];
+  USDC: {
+    address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+    symbol: 'USDC',
+    decimals: 6,
+  },
+};
 
 // Uniswap V3 Pool ABI (minimal)
 const POOL_ABI = [
@@ -32,13 +35,44 @@ const POOL_ABI = [
   'function positions(bytes32) external view returns (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)',
 ];
 
-function calculateTokenAmounts(liquidity: string, sqrtPriceX96: string, tickLower: number, tickUpper: number) {
+const POOLS_QUERY = `
+  query GetTopPools {
+    pools(
+      first: 10,
+      orderBy: totalValueLockedUSD,
+      orderDirection: desc,
+      where: {
+        token0_in: ["${POPULAR_TOKENS.WETH.address}", "${POPULAR_TOKENS.USDC.address}"],
+        token1_in: ["${POPULAR_TOKENS.WETH.address}", "${POPULAR_TOKENS.USDC.address}"]
+      }
+    ) {
+      id
+      feeTier
+      token0 {
+        id
+        symbol
+        decimals
+      }
+      token1 {
+        id
+        symbol
+        decimals
+      }
+      totalValueLockedToken0
+      totalValueLockedToken1
+      token0Price
+      token1Price
+    }
+  }
+`;
+
+function calculateTokenAmounts(liquidity: string, sqrtPriceX96: string, tick: number) {
   try {
     const liquidityBN = BigInt(liquidity);
     const sqrtPriceX96BN = BigInt(sqrtPriceX96);
     const Q96 = BigInt(2) ** BigInt(96);
 
-    // Calculate token amounts based on the liquidity formula
+    // Calculate token amounts based on the current price
     const amount0 = (liquidityBN * Q96) / sqrtPriceX96BN;
     const amount1 = (liquidityBN * sqrtPriceX96BN) / Q96;
 
@@ -64,82 +98,67 @@ export async function getUniswapPools() {
   }
 
   try {
+    // Fetch top pools from Graph API
+    const data = await graphClient.request(POOLS_QUERY);
+    const graphPools = data.pools;
+
     const provider = new ethers.JsonRpcProvider(INFURA_URL);
-    const pools: any[] = [];
+    const pools = [];
 
-    for (const pair of POPULAR_PAIRS) {
-      const token0 = new Token(
-        1, // mainnet
-        pair.token0.address,
-        pair.token0.decimals,
-        pair.token0.symbol
-      );
+    for (const graphPool of graphPools) {
+      try {
+        const token0 = new Token(
+          1, // mainnet
+          graphPool.token0.id,
+          parseInt(graphPool.token0.decimals),
+          graphPool.token0.symbol
+        );
 
-      const token1 = new Token(
-        1,
-        pair.token1.address,
-        pair.token1.decimals,
-        pair.token1.symbol
-      );
+        const token1 = new Token(
+          1,
+          graphPool.token1.id,
+          parseInt(graphPool.token1.decimals),
+          graphPool.token1.symbol
+        );
 
-      for (const feeTier of pair.feeTiers) {
-        try {
-          // Compute pool address
-          const poolAddress = computePoolAddress({
-            factoryAddress: FACTORY_ADDRESS,
-            tokenA: token0,
-            tokenB: token1,
-            fee: feeTier,
-          });
+        // Create contract instance for additional data
+        const poolContract = new ethers.Contract(
+          graphPool.id,
+          POOL_ABI,
+          provider
+        );
 
-          // Create contract instance
-          const poolContract = new ethers.Contract(
-            poolAddress,
-            POOL_ABI,
-            provider
-          );
+        // Fetch current pool state
+        const [slot0, liquidity] = await Promise.all([
+          poolContract.slot0(),
+          poolContract.liquidity(),
+        ]);
 
-          // Fetch pool data
-          const [slot0, liquidity] = await Promise.all([
-            poolContract.slot0(),
-            poolContract.liquidity(),
-          ]);
+        const sqrtPriceX96 = slot0[0].toString();
+        const tick = Number(slot0[1]);
 
-          const sqrtPriceX96 = slot0[0].toString();
-          const tick = Number(slot0[1]);
+        // Calculate current amounts in the pool
+        const { amount0, amount1 } = calculateTokenAmounts(
+          graphPool.totalValueLockedToken0,
+          sqrtPriceX96,
+          tick
+        );
 
-          // Calculate token amounts
-          const { amount0, amount1 } = calculateTokenAmounts(
-            liquidity.toString(),
-            sqrtPriceX96,
-            Math.floor(tick / 60) * 60, // Approximate tick range
-            Math.ceil(tick / 60) * 60
-          );
-
-          // Calculate prices using decimal conversion to avoid floating-point issues
-          const price0DecimalsFactor = BigInt(10) ** BigInt(pair.token1.decimals);
-          const price1DecimalsFactor = BigInt(10) ** BigInt(pair.token0.decimals);
-
-          const sqrtPriceX96Squared = (BigInt(sqrtPriceX96) * BigInt(sqrtPriceX96));
-          const token0Price = Number(sqrtPriceX96Squared * price0DecimalsFactor / (BigInt(2) ** BigInt(192)) / price1DecimalsFactor);
-          const token1Price = 1 / token0Price;
-
-          pools.push({
-            id: `${token0.address}-${token1.address}-${feeTier}`,
-            address: poolAddress,
-            token0: token0.symbol,
-            token1: token1.symbol,
-            feeTier,
-            liquidity: liquidity.toString(),
-            token0Price: token0Price.toFixed(6),
-            token1Price: token1Price.toFixed(6),
-            token0Amount: amount0,
-            token1Amount: amount1,
-          });
-        } catch (error) {
-          console.error(`Failed to fetch pool for ${token0.symbol}/${token1.symbol} ${feeTier}:`, error);
-          // Continue with other pools even if one fails
-        }
+        pools.push({
+          id: graphPool.id,
+          address: graphPool.id,
+          token0: token0.symbol,
+          token1: token1.symbol,
+          feeTier: parseInt(graphPool.feeTier),
+          liquidity: liquidity.toString(),
+          token0Price: parseFloat(graphPool.token0Price).toFixed(6),
+          token1Price: parseFloat(graphPool.token1Price).toFixed(6),
+          token0Amount: graphPool.totalValueLockedToken0,
+          token1Amount: graphPool.totalValueLockedToken1,
+        });
+      } catch (error) {
+        console.error(`Failed to fetch pool data: ${graphPool.id}`, error);
+        // Continue with other pools even if one fails
       }
     }
 
