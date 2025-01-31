@@ -2,8 +2,67 @@ import axios from 'axios';
 import NodeCache from 'node-cache';
 
 const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
-const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
-const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2';
+const COINGECKO_BASE_URL = 'https://pro-api.coingecko.com/api/v3';
+const API_KEY = process.env.COINGECKO_API_KEY;
+
+// Add API key to all CoinGecko requests
+const coingeckoAxios = axios.create({
+  baseURL: COINGECKO_BASE_URL,
+  headers: {
+    'x-cg-pro-api-key': API_KEY
+  }
+});
+
+async function fetchWithRetry(url: string, maxRetries = 3, delay = 1000): Promise<any> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await coingeckoAxios.get(url);
+      return response.data;
+    } catch (error: any) {
+      console.error(`Attempt ${i + 1} failed:`, error.response?.status, error.response?.data);
+      if (i === maxRetries - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+    }
+  }
+}
+
+export async function getEthereumData(): Promise<CryptoData> {
+  const cacheKey = 'ethereum_data';
+  const cachedData = cache.get(cacheKey);
+
+  if (cachedData) {
+    return cachedData;
+  }
+
+  try {
+    // Get current price data
+    const priceData = await fetchWithRetry(
+      `/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true`
+    );
+
+    // Get historical data
+    const historicalData = await fetchWithRetry(
+      `/coins/ethereum/market_chart?vs_currency=usd&days=1&interval=hourly`
+    );
+
+    const prices24h = historicalData.prices.map((p: number[]) => p[1]);
+    const data = priceData.ethereum;
+
+    const result: CryptoData = {
+      price: data.usd,
+      volume_24h: data.usd_24h_vol,
+      price_change_24h: data.usd_24h_change,
+      market_cap: data.usd_market_cap,
+      prices_24h,
+    };
+
+    cache.set(cacheKey, result);
+    return result;
+  } catch (error) {
+    console.error('Error fetching Ethereum data:', error);
+    throw new Error('Failed to fetch market data');
+  }
+}
 
 interface CryptoData {
   price: number;
@@ -98,67 +157,6 @@ function calculateROC(prices: number[], periods: number = 12): number {
   return ((prices[prices.length - 1] - prices[prices.length - periods]) / prices[prices.length - periods]) * 100;
 }
 
-async function fetchWithRetry(url: string, maxRetries = 3, delay = 1000): Promise<any> {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await axios.get(url);
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 429) {
-        // Rate limit hit, wait and retry
-        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-        continue;
-      }
-      throw error;
-    }
-  }
-  throw new Error(`Failed to fetch after ${maxRetries} retries`);
-}
-
-export async function getEthereumData(): Promise<CryptoData> {
-  const cacheKey = 'ethereum_data';
-  const cachedData = cache.get<CryptoData>(cacheKey);
-
-  if (cachedData) {
-    return cachedData;
-  }
-
-  try {
-    // Fetch current price data with retry
-    const priceData = await fetchWithRetry(
-      `${COINGECKO_BASE_URL}/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true`
-    );
-
-    // Fetch historical hourly data with retry
-    const historicalData = await fetchWithRetry(
-      `${COINGECKO_BASE_URL}/coins/ethereum/market_chart?vs_currency=usd&days=1&interval=hourly`
-    );
-
-    const data = priceData.ethereum;
-    const prices24h = historicalData.prices.map((p: number[]) => p[1]);
-
-    const result: CryptoData = {
-      price: data.usd,
-      volume_24h: data.usd_24h_vol,
-      price_change_24h: data.usd_24h_change,
-      market_cap: data.usd_market_cap,
-      prices_24h: prices24h,
-    };
-
-    cache.set(cacheKey, result);
-    return result;
-  } catch (error) {
-    console.error('Error fetching Ethereum data:', error);
-    // Return default data if API fails
-    return {
-      price: 0,
-      volume_24h: 0,
-      price_change_24h: 0,
-      market_cap: 0,
-      prices_24h: [],
-    };
-  }
-}
 
 export async function getTechnicalIndicators() {
   try {
@@ -315,3 +313,4 @@ function calculateOverallSentiment(headlines: NewsItem[]): number {
 
   return (sentimentScores.reduce((a, b) => a + b, 0) / headlines.length) * 100;
 }
+const CRYPTOCOMPARE_BASE_URL = 'https://min-api.cryptocompare.com/data/v2';
