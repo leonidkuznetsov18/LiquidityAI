@@ -20,7 +20,6 @@ export default function RangeAdjuster({ predictions }: Props) {
     predictions?.rangeHigh || 2200,
   ]);
 
-  // Update range when predictions change
   useEffect(() => {
     if (predictions) {
       setRange([predictions.rangeLow, predictions.rangeHigh]);
@@ -52,7 +51,6 @@ export default function RangeAdjuster({ predictions }: Props) {
     }
   };
 
-  // Calculate min and max based on current price range
   const minPrice = predictions ? Math.floor(predictions.rangeLow * 0.8) : 1500;
   const maxPrice = predictions ? Math.ceil(predictions.rangeHigh * 1.2) : 2500;
 
@@ -105,7 +103,6 @@ export default function RangeAdjuster({ predictions }: Props) {
                   onMouseDown={props.onMouseDown}
                   onTouchStart={props.onTouchStart}
                   className="h-8 flex w-full"
-                  style={props.style}
                 >
                   <div
                     ref={props.ref}
@@ -123,9 +120,10 @@ export default function RangeAdjuster({ predictions }: Props) {
                   </div>
                 </div>
               )}
-              renderThumb={({ props }) => (
+              renderThumb={({ props, index }) => (
                 <div
                   {...props}
+                  key={index}
                   className="h-4 w-4 rounded-full bg-primary border-2 border-background focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-opacity-75"
                   style={{
                     ...props.style,

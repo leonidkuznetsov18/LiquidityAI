@@ -35,6 +35,7 @@ export default function TradingViewChart() {
           container: containerRef.current,
           height: 500,
           width: '100%',
+          autosize: true,
         });
       }
     };

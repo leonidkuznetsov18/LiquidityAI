@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
   Settings,
-  TrendingUp,
-  Activity,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -55,9 +53,9 @@ export default function Sidebar() {
       <nav className="p-2 space-y-1">
         {links.map((link) => (
           <Link key={link.href} href={link.href}>
-            <a
+            <div
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                "flex items-center gap-3 px-3 py-2 rounded-md transition-colors cursor-pointer",
                 "hover:bg-accent hover:text-accent-foreground",
                 location === link.href
                   ? "bg-accent text-accent-foreground"
@@ -67,7 +65,7 @@ export default function Sidebar() {
             >
               <link.icon className="h-5 w-5" />
               {!collapsed && <span>{link.label}</span>}
-            </a>
+            </div>
           </Link>
         ))}
       </nav>
