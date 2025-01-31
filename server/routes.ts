@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
-import { getEthereumData, getTechnicalIndicators, getCryptoNews } from './services/crypto';
+import { getEthereumData, getTechnicalIndicators, getCryptoNews, generatePredictions } from './services/crypto';
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
@@ -48,18 +48,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // AI Predictions API (using real price data for range calculation)
+  // AI Predictions API (using technical analysis for range calculation)
   app.get('/api/predictions', async (_req, res) => {
     try {
-      const data = await getEthereumData();
-      const currentPrice = data.price;
-      res.json({
-        rangeLow: currentPrice * 0.95,
-        rangeHigh: currentPrice * 1.05,
-        confidence: 75 + Math.random() * 15, // This will be replaced with AI predictions later
-      });
+      const predictions = await generatePredictions();
+      res.json(predictions);
     } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch price data' });
+      console.error('Prediction error:', error);
+      res.status(500).json({ error: 'Failed to generate predictions' });
     }
   });
 

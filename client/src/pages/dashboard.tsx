@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import TradingViewChart from "@/components/analysis/TradingViewChart";
 import TechnicalIndicators from "@/components/analysis/TechnicalIndicators";
 import SentimentPanel from "@/components/analysis/SentimentPanel";
@@ -6,16 +7,23 @@ import RangeAdjuster from "@/components/liquidity/RangeAdjuster";
 import Sidebar from "@/components/layout/Sidebar";
 import { useMarketData } from "@/hooks/useMarketData";
 import { usePredictions } from "@/hooks/usePredictions";
+import { formatDistanceToNow } from "date-fns";
+import { RefreshCw } from "lucide-react";
 
 interface Predictions {
   rangeLow: number;
   rangeHigh: number;
   confidence: number;
+  timestamp: number;
 }
 
 export default function Dashboard() {
   const { data: marketData, isLoading: marketLoading } = useMarketData();
-  const { data: predictions } = usePredictions();
+  const { data: predictions, refetch: refetchPredictions, isRefetching } = usePredictions();
+
+  const handleRefresh = () => {
+    refetchPredictions();
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -29,7 +37,18 @@ export default function Dashboard() {
           </Card>
 
           <Card className="p-4">
-            <h2 className="text-lg font-semibold mb-4">AI Predictions</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">AI Predictions</h2>
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={handleRefresh}
+                disabled={isRefetching}
+                className={isRefetching ? "animate-spin" : ""}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
             {predictions ? (
               <div className="space-y-4">
                 <div className="flex justify-between">
@@ -44,6 +63,9 @@ export default function Dashboard() {
                   <span className="font-mono">
                     {predictions.confidence.toFixed(1)}%
                   </span>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Updated {formatDistanceToNow(predictions.timestamp)} ago
                 </div>
               </div>
             ) : (
