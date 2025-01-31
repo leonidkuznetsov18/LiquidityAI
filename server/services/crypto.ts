@@ -85,22 +85,18 @@ export async function getCryptoNews(): Promise<NewsData> {
   }
 
   try {
-    // Using CoinGecko's status updates endpoint which includes news and updates
+    // Using CoinGecko's companies public treasury API as a news source
     const response = await axios.get(
-      `${COINGECKO_BASE_URL}/status_updates?category=general&per_page=100&project_type=coin`
+      `${COINGECKO_BASE_URL}/companies/public_treasury/ethereum`
     );
 
-    const newsItems = response.data.status_updates
-      .filter((update: any) => update.description && update.description.length > 20)
-      .slice(0, 5) // Take only top 5 news items
-      .map((update: any) => {
-        const title = update.description.slice(0, 100) + (update.description.length > 100 ? '...' : '');
-        return {
-          title,
-          url: update.project.links?.homepage?.[0] || '', // Use project homepage as fallback
-          sentiment: analyzeNewsSentiment(update.description)
-        };
-      });
+    const newsItems = response.data.companies
+      .slice(0, 5) // Take only top 5 companies
+      .map((company: any) => ({
+        title: `${company.name} holds ${company.total_holdings} ETH (${company.total_current_value_usd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })})`,
+        url: `https://www.coingecko.com/en/companies/${company.name.toLowerCase().replace(/\s+/g, '-')}`,
+        sentiment: analyzeNewsSentiment(company.total_holdings, company.total_current_value_usd)
+      }));
 
     const result: NewsData = {
       news: {
@@ -117,16 +113,10 @@ export async function getCryptoNews(): Promise<NewsData> {
   }
 }
 
-function analyzeNewsSentiment(text: string): 'positive' | 'negative' | 'neutral' {
-  const positiveWords = ['launch', 'partnership', 'growth', 'success', 'improve', 'upgrade', 'milestone', 'achievement', 'innovation'];
-  const negativeWords = ['issue', 'delay', 'problem', 'bug', 'vulnerability', 'hack', 'decline', 'suspend', 'concern'];
-
-  const lowerText = text.toLowerCase();
-  const posCount = positiveWords.filter(word => lowerText.includes(word)).length;
-  const negCount = negativeWords.filter(word => lowerText.includes(word)).length;
-
-  if (posCount > negCount) return 'positive';
-  if (negCount > posCount) return 'negative';
+function analyzeNewsSentiment(holdings: number, value: number): 'positive' | 'negative' | 'neutral' {
+  // Simple sentiment analysis based on holdings and value
+  if (holdings > 1000 && value > 1000000) return 'positive';
+  if (holdings < 100 || value < 100000) return 'negative';
   return 'neutral';
 }
 
