@@ -65,6 +65,8 @@ function calculateMACD(prices: number[]): { value: number; signal: number } {
 }
 
 function calculateEMA(prices: number[], periods: number): number {
+  if (prices.length === 0) return 0;
+
   const multiplier = 2 / (periods + 1);
   let ema = prices[0];
 
@@ -76,6 +78,10 @@ function calculateEMA(prices: number[], periods: number): number {
 }
 
 function calculateBollingerBands(prices: number[]): { upper: number; lower: number; middle: number } {
+  if (prices.length === 0) {
+    return { upper: 0, middle: 0, lower: 0 };
+  }
+
   const sma = prices.reduce((a, b) => a + b, 0) / prices.length;
   const squaredDiffs = prices.map(price => Math.pow(price - sma, 2));
   const standardDeviation = Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / prices.length);
@@ -92,6 +98,23 @@ function calculateROC(prices: number[], periods: number = 12): number {
   return ((prices[prices.length - 1] - prices[prices.length - periods]) / prices[prices.length - periods]) * 100;
 }
 
+async function fetchWithRetry(url: string, maxRetries = 3, delay = 1000): Promise<any> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await axios.get(url);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 429) {
+        // Rate limit hit, wait and retry
+        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error(`Failed to fetch after ${maxRetries} retries`);
+}
+
 export async function getEthereumData(): Promise<CryptoData> {
   const cacheKey = 'ethereum_data';
   const cachedData = cache.get<CryptoData>(cacheKey);
@@ -101,18 +124,18 @@ export async function getEthereumData(): Promise<CryptoData> {
   }
 
   try {
-    // Fetch current price data
-    const priceResponse = await axios.get(
+    // Fetch current price data with retry
+    const priceData = await fetchWithRetry(
       `${COINGECKO_BASE_URL}/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true`
     );
 
-    // Fetch historical hourly data for the last 24 hours
-    const historicalResponse = await axios.get(
+    // Fetch historical hourly data with retry
+    const historicalData = await fetchWithRetry(
       `${COINGECKO_BASE_URL}/coins/ethereum/market_chart?vs_currency=usd&days=1&interval=hourly`
     );
 
-    const data = priceResponse.data.ethereum;
-    const prices24h = historicalResponse.data.prices.map((p: number[]) => p[1]);
+    const data = priceData.ethereum;
+    const prices24h = historicalData.prices.map((p: number[]) => p[1]);
 
     const result: CryptoData = {
       price: data.usd,
@@ -126,74 +149,93 @@ export async function getEthereumData(): Promise<CryptoData> {
     return result;
   } catch (error) {
     console.error('Error fetching Ethereum data:', error);
-    throw error;
+    // Return default data if API fails
+    return {
+      price: 0,
+      volume_24h: 0,
+      price_change_24h: 0,
+      market_cap: 0,
+      prices_24h: [],
+    };
   }
 }
 
 export async function getTechnicalIndicators() {
-  const data = await getEthereumData();
-  const prices = data.prices_24h;
-  const currentPrice = data.price;
+  try {
+    const data = await getEthereumData();
+    const prices = data.prices_24h;
+    const currentPrice = data.price;
 
-  // Calculate Bollinger Bands
-  const bb = calculateBollingerBands(prices);
+    if (prices.length === 0) {
+      throw new Error('No price data available');
+    }
 
-  // Calculate RSI
-  const rsi = calculateRSI(prices);
+    // Calculate Bollinger Bands
+    const bb = calculateBollingerBands(prices);
 
-  // Calculate MACD
-  const macd = calculateMACD(prices);
+    // Calculate RSI
+    const rsi = calculateRSI(prices);
 
-  // Calculate Rate of Change
-  const roc = calculateROC(prices);
+    // Calculate MACD
+    const macd = calculateMACD(prices);
 
-  // Calculate Moving Averages
-  const ma20 = calculateEMA(prices, 20);
-  const ma50 = calculateEMA(prices, 50);
+    // Calculate Rate of Change
+    const roc = calculateROC(prices);
 
-  return {
-    indicators: [
-      {
-        name: 'RSI (14)',
-        value: rsi,
-        signal: rsi > 70 ? 'sell' : rsi < 30 ? 'buy' : 'neutral',
-      },
-      {
-        name: 'MACD',
-        value: macd.value,
-        signal: macd.value > macd.signal ? 'buy' : 'sell',
-      },
-      {
-        name: 'Bollinger Bands',
-        value: currentPrice,
-        signal: currentPrice > bb.upper ? 'sell' : currentPrice < bb.lower ? 'buy' : 'neutral',
-        details: {
-          upper: bb.upper,
-          middle: bb.middle,
-          lower: bb.lower,
-        }
-      },
-      {
-        name: 'Price Rate of Change',
-        value: roc,
-        signal: roc > 5 ? 'sell' : roc < -5 ? 'buy' : 'neutral',
-      },
-      {
-        name: 'MA Crossover',
-        value: ma20,
-        signal: ma20 > ma50 ? 'buy' : 'sell',
-        details: {
-          ma20,
-          ma50,
-        }
-      },
-      {
-        name: 'Volume 24h',
-        value: data.volume_24h / 1000000, // Convert to millions
-        signal: data.volume_24h > 1000000000 ? 'buy' : data.volume_24h < 500000000 ? 'sell' : 'neutral',
-      },
-    ],
-  };
+    // Calculate Moving Averages
+    const ma20 = calculateEMA(prices, 20);
+    const ma50 = calculateEMA(prices, 50);
+
+    return {
+      indicators: [
+        {
+          name: 'RSI (14)',
+          value: rsi,
+          signal: rsi > 70 ? 'sell' : rsi < 30 ? 'buy' : 'neutral',
+        },
+        {
+          name: 'MACD',
+          value: macd.value,
+          signal: macd.value > macd.signal ? 'buy' : 'sell',
+        },
+        {
+          name: 'Bollinger Bands',
+          value: currentPrice,
+          signal: currentPrice > bb.upper ? 'sell' : currentPrice < bb.lower ? 'buy' : 'neutral',
+          details: {
+            upper: bb.upper,
+            middle: bb.middle,
+            lower: bb.lower,
+          }
+        },
+        {
+          name: 'Price Rate of Change',
+          value: roc,
+          signal: roc > 5 ? 'sell' : roc < -5 ? 'buy' : 'neutral',
+        },
+        {
+          name: 'MA Crossover',
+          value: ma20,
+          signal: ma20 > ma50 ? 'buy' : 'sell',
+          details: {
+            ma20,
+            ma50,
+          }
+        },
+        {
+          name: 'Volume 24h',
+          value: data.volume_24h / 1000000, // Convert to millions
+          signal: data.volume_24h > 1000000000 ? 'buy' : data.volume_24h < 500000000 ? 'sell' : 'neutral',
+        },
+      ],
+    };
+  } catch (error) {
+    console.error('Error calculating technical indicators:', error);
+    // Return empty indicators if calculations fail
+    return {
+      indicators: [],
+    };
+  }
 }
 
 export async function getCryptoNews(): Promise<NewsData> {
@@ -229,7 +271,12 @@ export async function getCryptoNews(): Promise<NewsData> {
     return result;
   } catch (error) {
     console.error('Error fetching crypto news:', error);
-    throw error;
+    return {
+      news: {
+        headlines: [],
+        score: 50,
+      }
+    };
   }
 }
 
@@ -256,6 +303,8 @@ function analyzeNewsSentiment(text: string): 'positive' | 'negative' | 'neutral'
 }
 
 function calculateOverallSentiment(headlines: NewsItem[]): number {
+  if (headlines.length === 0) return 50;
+
   const sentimentScores = headlines.map(headline => {
     switch (headline.sentiment) {
       case 'positive': return 1;
@@ -264,5 +313,5 @@ function calculateOverallSentiment(headlines: NewsItem[]): number {
     }
   });
 
-  return (sentimentScores.reduce((a, b) => a + b, 0) / sentimentScores.length) * 100;
+  return (sentimentScores.reduce((a, b) => a + b, 0) / headlines.length) * 100;
 }
