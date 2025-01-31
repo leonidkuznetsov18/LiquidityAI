@@ -47,23 +47,32 @@ export default function SentimentPanel() {
     );
   };
 
+  const sentimentScore = sentiment?.news.score ? Math.round(sentiment.news.score * 100) : 0;
+  const sentimentLabel = sentimentScore < 30 ? 'Bearish' : sentimentScore > 70 ? 'Bullish' : 'Neutral';
+  const labelColor = sentimentScore < 30 ? 'text-red-500' : sentimentScore > 70 ? 'text-green-500' : 'text-yellow-500';
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">Market Sentiment</h2>
 
       <div className="space-y-6">
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <SiCoinmarketcap className="h-4 w-4" />
-            <span>Overall Sentiment</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <SiCoinmarketcap className="h-4 w-4" />
+              <span>Overall Sentiment</span>
+            </div>
+            <span className={`font-semibold ${labelColor}`}>
+              {sentimentScore}% - {sentimentLabel}
+            </span>
           </div>
           <Progress 
-            value={sentiment?.news.score ? sentiment.news.score * 100 : 0} 
+            value={sentimentScore} 
             className="h-2" 
           />
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span>Bearish</span>
-            <span>Bullish</span>
+            <span>0% - Extremely Bearish</span>
+            <span>100% - Extremely Bullish</span>
           </div>
         </div>
 

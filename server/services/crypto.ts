@@ -244,23 +244,101 @@ export async function getCryptoNews(): Promise<NewsData> {
 
 function analyzeNewsSentiment(text: string): 'positive' | 'negative' | 'neutral' {
   const positiveWords = [
+    // Market terms
     'launch', 'partnership', 'growth', 'success', 'improve',
     'upgrade', 'milestone', 'achievement', 'innovation', 'bullish',
-    'adoption', 'advance', 'progress', 'breakthrough', 'support'
+    'adoption', 'advance', 'progress', 'breakthrough', 'support',
+    // Performance terms
+    'surge', 'rally', 'gain', 'outperform', 'beat',
+    'record', 'high', 'rise', 'boost', 'strong',
+    'profit', 'momentum', 'recover', 'positive', 'advantage',
+    // Development terms
+    'release', 'update', 'enhance', 'optimize', 'secure',
+    'integrate', 'expand', 'collaborate', 'streamline', 'accelerate',
+    // Crypto-specific positive terms
+    'mainnet', 'staking', 'scaling', 'institutional', 'adoption',
+    'defi', 'yield', 'governance', 'community', 'protocol'
   ];
 
   const negativeWords = [
+    // Market problems
     'issue', 'delay', 'problem', 'bug', 'vulnerability',
     'hack', 'decline', 'suspend', 'concern', 'bearish',
-    'crash', 'risk', 'warning', 'threat', 'crisis'
+    'crash', 'risk', 'warning', 'threat', 'crisis',
+    // Performance issues
+    'drop', 'fall', 'plunge', 'tumble', 'sink',
+    'loss', 'weak', 'poor', 'under', 'pressure',
+    'volatile', 'uncertainty', 'doubt', 'fear', 'panic',
+    // Development issues
+    'flaw', 'error', 'bug', 'exploit', 'compromise',
+    'breach', 'failure', 'malfunction', 'breakdown', 'glitch',
+    // Regulatory/external threats
+    'ban', 'regulate', 'restrict', 'investigate', 'compliance',
+    'fine', 'penalty', 'lawsuit', 'illegal', 'fraud'
+  ];
+
+  // Context modifiers - words that can flip the meaning
+  const contextModifiers = [
+    'not', 'no', "n't", 'without', 'none',
+    'despite', 'although', 'however', 'but', 'contrary',
+    'prevent', 'avoid', 'stop', 'reject', 'eliminate'
   ];
 
   const lowerText = text.toLowerCase();
-  const posCount = positiveWords.filter(word => lowerText.includes(word)).length;
-  const negCount = negativeWords.filter(word => lowerText.includes(word)).length;
+  let score = 0;
+  let totalMatches = 0;
 
-  if (posCount > negCount) return 'positive';
-  if (negCount > posCount) return 'negative';
+  // Check for positive words
+  positiveWords.forEach(word => {
+    if (lowerText.includes(word)) {
+      // Check for context modifiers near the word
+      const nearbyText = lowerText.substring(
+        Math.max(0, lowerText.indexOf(word) - 20),
+        Math.min(lowerText.length, lowerText.indexOf(word) + 20)
+      );
+
+      const hasModifier = contextModifiers.some(modifier =>
+        nearbyText.includes(modifier)
+      );
+
+      score += hasModifier ? -1 : 1;
+      totalMatches++;
+    }
+  });
+
+  // Check for negative words
+  negativeWords.forEach(word => {
+    if (lowerText.includes(word)) {
+      // Check for context modifiers near the word
+      const nearbyText = lowerText.substring(
+        Math.max(0, lowerText.indexOf(word) - 20),
+        Math.min(lowerText.length, lowerText.indexOf(word) + 20)
+      );
+
+      const hasModifier = contextModifiers.some(modifier =>
+        nearbyText.includes(modifier)
+      );
+
+      score += hasModifier ? 1 : -1;
+      totalMatches++;
+    }
+  });
+
+  // Special case handling for version updates and releases
+  if (lowerText.includes('v4') || lowerText.includes('version 4') ||
+    lowerText.includes('update') || lowerText.includes('release')) {
+    if (!lowerText.includes('delay') && !lowerText.includes('problem')) {
+      score += 2;
+      totalMatches += 2;
+    }
+  }
+
+  // Calculate final sentiment
+  if (totalMatches === 0) return 'neutral';
+  const normalizedScore = score / totalMatches;
+
+  if (normalizedScore > 0.2) return 'positive';
+  if (normalizedScore < -0.2) return 'negative';
   return 'neutral';
 }
 
@@ -268,13 +346,12 @@ function calculateOverallSentiment(headlines: NewsItem[]): number {
   const sentimentScores = headlines.map(headline => {
     switch (headline.sentiment) {
       case 'positive': return 1;
-      case 'negative': return 0;
-      default: return 0.5;
+      case 'negative': return -1;
+      default: return 0;
     }
   });
 
-  const total = sentimentScores.reduce((a, b) => a + b);
-  return total / sentimentScores.length;
+  return sentimentScores.length > 0 ? sentimentScores.reduce((a, b) => a + b, 0) / sentimentScores.length : 0;
 }
 
 export async function generatePredictions() {
