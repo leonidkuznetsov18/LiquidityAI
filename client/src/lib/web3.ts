@@ -30,6 +30,35 @@ export async function connectWallet(): Promise<string | null> {
   }
 }
 
+export async function disconnectWallet(): Promise<void> {
+  if (typeof window === 'undefined' || !window.ethereum) return;
+
+  // Note: MetaMask doesn't actually have a "disconnect" method
+  // Instead, we just clear our local state
+  window.ethereum.selectedAddress = null;
+
+  toast({
+    title: "Disconnected",
+    description: "Wallet disconnected successfully",
+  });
+}
+
+export function getEtherscanLink(address: string, type: 'address' | 'token' | 'transaction' | 'pool'): string {
+  const baseUrl = 'https://etherscan.io';
+  switch (type) {
+    case 'address':
+      return `${baseUrl}/address/${address}`;
+    case 'token':
+      return `${baseUrl}/token/${address}`;
+    case 'transaction':
+      return `${baseUrl}/tx/${address}`;
+    case 'pool':
+      return `${baseUrl}/address/${address}`;
+    default:
+      return baseUrl;
+  }
+}
+
 // Add type definition for window.ethereum
 declare global {
   interface Window {

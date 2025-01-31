@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { connectWallet } from "@/lib/web3";
-import { Loader2 } from "lucide-react";
+import { connectWallet, disconnectWallet, getEtherscanLink } from "@/lib/web3";
+import { Loader2, ExternalLink, Power } from "lucide-react";
 import { formatEther } from "ethers";
 
 interface Pool {
@@ -14,6 +14,9 @@ interface Pool {
   liquidity: string;
   token0Price: string;
   token1Price: string;
+  address?: string;
+  token0Amount?: string;
+  token1Amount?: string;
 }
 
 export default function UniswapPools() {
@@ -30,6 +33,27 @@ export default function UniswapPools() {
       setIsConnected(true);
       fetchPools();
     }
+
+    // Listen for account changes
+    const handleAccountsChanged = (accounts: string[]) => {
+      if (accounts.length === 0) {
+        handleDisconnect();
+      } else {
+        setAddress(accounts[0]);
+        setIsConnected(true);
+        fetchPools();
+      }
+    };
+
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      }
+    };
   }, []);
 
   const handleConnect = async () => {
@@ -48,6 +72,13 @@ export default function UniswapPools() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleDisconnect = async () => {
+    await disconnectWallet();
+    setIsConnected(false);
+    setAddress(null);
+    setPools([]);
   };
 
   const fetchPools = async () => {
@@ -77,6 +108,18 @@ export default function UniswapPools() {
     }
   };
 
+  const formatLiquidity = (amount: string, decimals: number = 18) => {
+    try {
+      const formatted = formatEther(amount);
+      return parseFloat(formatted).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    } catch (error) {
+      return "0.00";
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -97,13 +140,18 @@ export default function UniswapPools() {
             </Button>
           )}
           <Button
-            onClick={handleConnect}
+            onClick={isConnected ? handleDisconnect : handleConnect}
             variant={isConnected ? "outline" : "default"}
+            className="flex items-center gap-2"
           >
-            {isConnected ? 
-              `Connected: ${address?.slice(0, 6)}...${address?.slice(-4)}` : 
+            {isConnected ? (
+              <>
+                <span>{`${address?.slice(0, 6)}...${address?.slice(-4)}`}</span>
+                <Power className="h-4 w-4" />
+              </>
+            ) : (
               "Connect Wallet"
-            }
+            )}
           </Button>
         </div>
       </div>
@@ -126,12 +174,34 @@ export default function UniswapPools() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="font-mono">
-                    1 {pool.token0} = {parseFloat(pool.token0Price).toFixed(6)} {pool.token1}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Liquidity: ${formatEther(pool.liquidity)}
-                  </p>
+                  <div className="space-y-1">
+                    <p className="font-mono text-sm">
+                      {pool.token0}: {formatLiquidity(pool.token0Amount || '0')}
+                    </p>
+                    <p className="font-mono text-sm">
+                      {pool.token1}: {formatLiquidity(pool.token1Amount || '0', 6)} {/* USDC has 6 decimals */}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-sm text-muted-foreground">View on:</span>
+                    <a
+                      href={`https://info.uniswap.org/#/pools/${pool.address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline flex items-center gap-1"
+                    >
+                      Uniswap <ExternalLink className="h-3 w-3" />
+                    </a>
+                    <span className="text-muted-foreground">|</span>
+                    <a
+                      href={getEtherscanLink(pool.address || '', 'pool')}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline flex items-center gap-1"
+                    >
+                      Etherscan <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
                 </div>
               </div>
             </Card>

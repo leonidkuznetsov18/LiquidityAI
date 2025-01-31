@@ -29,7 +29,22 @@ const POPULAR_PAIRS = [
 const POOL_ABI = [
   'function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)',
   'function liquidity() external view returns (uint128)',
+  'function positions(bytes32) external view returns (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)',
 ];
+
+function calculateTokenAmounts(liquidity: bigint, sqrtPriceX96: bigint, tickLower: number, tickUpper: number) {
+  const Q96 = 2n ** 96n;
+
+  // Calculate token amounts based on the liquidity formula
+  // This is a simplified calculation and might not be 100% accurate
+  const amount0 = (liquidity * Q96) / sqrtPriceX96;
+  const amount1 = liquidity * sqrtPriceX96 / Q96;
+
+  return {
+    amount0: amount0.toString(),
+    amount1: amount1.toString(),
+  };
+}
 
 export async function getUniswapPools() {
   const cacheKey = 'uniswap_pools';
@@ -82,6 +97,15 @@ export async function getUniswapPools() {
           ]);
 
           const sqrtPriceX96 = slot0[0];
+          const tick = slot0[1];
+
+          // Calculate token amounts
+          const { amount0, amount1 } = calculateTokenAmounts(
+            BigInt(liquidity.toString()),
+            BigInt(sqrtPriceX96.toString()),
+            Math.floor(tick / 60) * 60, // Approximate tick range
+            Math.ceil(tick / 60) * 60
+          );
 
           // Calculate prices
           const token0Price = (Number(sqrtPriceX96) * Number(sqrtPriceX96) * (10 ** token1.decimals)) / 
@@ -91,12 +115,15 @@ export async function getUniswapPools() {
 
           pools.push({
             id: `${token0.address}-${token1.address}-${feeTier}`,
+            address: poolAddress,
             token0: token0.symbol,
             token1: token1.symbol,
             feeTier,
             liquidity: liquidity.toString(),
             token0Price: token0Price.toFixed(6),
             token1Price: token1Price.toFixed(6),
+            token0Amount: amount0,
+            token1Amount: amount1,
           });
         } catch (error) {
           console.error(`Failed to fetch pool for ${token0.symbol}/${token1.symbol} ${feeTier}:`, error);
