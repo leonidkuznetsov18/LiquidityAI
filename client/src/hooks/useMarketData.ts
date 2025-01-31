@@ -1,12 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 
 export interface MarketData {
+  price24h: {
+    current: number;
+    change: number;
+    changePercentage: number;
+  };
+  volume24h: {
+    total: number;
+    buy: number;
+    sell: number;
+  };
   indicators: Array<{
     name: string;
     value: number;
     signal: 'buy' | 'sell' | 'neutral';
-    description: string; // Added description for tooltips
-    learnMoreUrl: string; // Added URL for detailed explanation
+    description: string;
+    learnMoreUrl: string;
   }>;
 }
 

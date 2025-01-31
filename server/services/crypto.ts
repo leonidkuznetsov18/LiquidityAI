@@ -10,6 +10,8 @@ interface CryptoData {
   volume_24h: number;
   price_change_24h: number;
   market_cap: number;
+  volume_buy_24h?: number;
+  volume_sell_24h?: number;
 }
 
 interface NewsItem {
@@ -59,7 +61,21 @@ export async function getTechnicalIndicators() {
   const priceChange = data.price_change_24h;
   const volume = data.volume_24h;
 
+  // Estimate buy/sell volume (simplified calculation)
+  const volumeBuy = volume * (priceChange > 0 ? 0.6 : 0.4); // More buys when price is up
+  const volumeSell = volume - volumeBuy;
+
   return {
+    price24h: {
+      current: data.price,
+      change: data.price_change_24h,
+      changePercentage: (data.price_change_24h / data.price) * 100,
+    },
+    volume24h: {
+      total: data.volume_24h,
+      buy: volumeBuy,
+      sell: volumeSell,
+    },
     indicators: [
       {
         name: 'EMA (14)',
