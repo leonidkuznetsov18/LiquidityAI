@@ -67,13 +67,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/sentiment', async (_req, res) => {
     try {
       const newsData = await getCryptoNews();
-      res.json({
-        twitter: {
-          score: 0.6 + Math.random() * 0.2, // We'll replace this with real Twitter data when available
-          volume: 50000 + Math.random() * 10000,
-        },
-        news: newsData.news,
-      });
+      res.json(newsData);
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch sentiment data' });
     }

@@ -4,8 +4,8 @@ import TechnicalIndicators from "@/components/analysis/TechnicalIndicators";
 import SentimentPanel from "@/components/analysis/SentimentPanel";
 import RangeAdjuster from "@/components/liquidity/RangeAdjuster";
 import Sidebar from "@/components/layout/Sidebar";
-import { useQuery } from "@tanstack/react-query";
 import { useMarketData } from "@/hooks/useMarketData";
+import { usePredictions } from "@/hooks/usePredictions";
 
 interface Predictions {
   rangeLow: number;
@@ -15,9 +15,7 @@ interface Predictions {
 
 export default function Dashboard() {
   const { data: marketData, isLoading: marketLoading } = useMarketData();
-  const { data: predictions } = useQuery<Predictions>({ 
-    queryKey: ['/api/predictions'],
-  });
+  const { data: predictions } = usePredictions();
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -36,11 +34,16 @@ export default function Dashboard() {
               <div className="space-y-4">
                 <div className="flex justify-between">
                   <span>Optimal Range:</span>
-                  <span className="font-mono">${predictions.rangeLow.toFixed(2)} - ${predictions.rangeHigh.toFixed(2)}</span>
+                  <span className="font-mono">
+                    ${predictions.rangeLow.toFixed(2)} - $
+                    {predictions.rangeHigh.toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Confidence:</span>
-                  <span className="font-mono">{predictions.confidence.toFixed(1)}%</span>
+                  <span className="font-mono">
+                    {predictions.confidence.toFixed(1)}%
+                  </span>
                 </div>
               </div>
             ) : (
