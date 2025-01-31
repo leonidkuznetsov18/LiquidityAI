@@ -3,6 +3,7 @@ import { Progress } from "@/components/ui/progress";
 import { useSentiment } from "@/hooks/useSentiment";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SiCoinmarketcap } from "react-icons/si";
+import { ExternalLink } from "lucide-react";
 
 export default function SentimentPanel() {
   const { data: sentiment, isLoading } = useSentiment();
@@ -38,12 +39,26 @@ export default function SentimentPanel() {
         </div>
 
         <div className="bg-card rounded-lg p-4">
-          <h3 className="font-medium mb-2">Trending Updates</h3>
-          <ul className="space-y-2 text-sm">
+          <h3 className="font-medium mb-4">Trending Updates</h3>
+          <div className="space-y-3">
             {sentiment?.news.headlines.map((headline, i) => (
-              <li key={i} className="line-clamp-1">{headline}</li>
+              <a
+                key={i}
+                href={headline.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`
+                  flex items-center gap-2 text-sm hover:underline
+                  ${headline.sentiment === 'positive' ? 'text-green-500' : ''}
+                  ${headline.sentiment === 'negative' ? 'text-red-500' : ''}
+                  ${headline.sentiment === 'neutral' ? 'text-muted-foreground' : ''}
+                `}
+              >
+                <span className="line-clamp-1 flex-1">{headline.title}</span>
+                <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-50" />
+              </a>
             ))}
-          </ul>
+          </div>
         </div>
       </div>
     </div>
