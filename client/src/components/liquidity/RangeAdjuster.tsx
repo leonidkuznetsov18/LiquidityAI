@@ -95,17 +95,21 @@ export default function RangeAdjuster({ predictions }: Props) {
 
           <div className="pt-4">
             <Slider
-              value={range}
+              value={[range[0], range[1]]}
               min={minPrice}
               max={maxPrice}
               step={1}
               minStepsBetweenThumbs={10}
-              onValueChange={(value) => setRange(value as [number, number])}
+              onValueChange={(values) => {
+                if (Array.isArray(values) && values.length === 2) {
+                  setRange([values[0], values[1]]);
+                }
+              }}
               className="my-4"
             />
             <div className="flex justify-between text-sm text-muted-foreground">
-              <span>${minPrice}</span>
-              <span>${maxPrice}</span>
+              <span>${minPrice.toFixed(2)}</span>
+              <span>${maxPrice.toFixed(2)}</span>
             </div>
           </div>
         </div>
