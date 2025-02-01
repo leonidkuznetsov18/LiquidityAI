@@ -1,11 +1,12 @@
 import { GraphQLClient } from 'graphql-request';
-import NodeCache from 'node-cache';
 
-const cache = new NodeCache({ stdTTL: 300 }); // Cache for 5 minutes
 const UNISWAP_GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3';
 const graphClient = new GraphQLClient(UNISWAP_GRAPH_URL);
 
-// Updated GraphQL query to focus on ETH/USDC pairs
+// ETH and USDC addresses on Ethereum mainnet
+const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'.toLowerCase();
+const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'.toLowerCase();
+
 const POOLS_QUERY = `
   {
     pools(
@@ -13,22 +14,16 @@ const POOLS_QUERY = `
       orderBy: totalValueLockedUSD,
       orderDirection: desc,
       where: {
-        token0_in: ["0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"],
-        token1_in: ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"]
+        and: [
+          {
+            token0_in: ["${WETH_ADDRESS}"],
+            token1: "${USDC_ADDRESS}"
+          }
+        ]
       }
     ) {
       id
       feeTier
-      token0 {
-        id
-        symbol
-        decimals
-      }
-      token1 {
-        id
-        symbol
-        decimals
-      }
       liquidity
       token0Price
       token1Price
@@ -40,16 +35,10 @@ const POOLS_QUERY = `
 `;
 
 export async function getUniswapPools() {
-  const cacheKey = 'uniswap_pools';
-  const cachedPools = cache.get(cacheKey);
-
-  if (cachedPools) {
-    return { pools: cachedPools };
-  }
-
   try {
     const data: any = await graphClient.request(POOLS_QUERY);
-    if (!data || !data.pools) {
+
+    if (!data?.pools) {
       console.warn('No pools data received from Uniswap Graph API');
       return { pools: [] };
     }
@@ -57,21 +46,16 @@ export async function getUniswapPools() {
     const pools = data.pools.map((pool: any) => ({
       id: pool.id,
       address: pool.id,
-      token0: 'ETH', // Display ETH instead of WETH
-      token1: pool.token1.symbol,
+      token0: 'ETH',
+      token1: 'USDC',
       feeTier: parseInt(pool.feeTier),
-      liquidity: pool.liquidity,
-      token0Price: parseFloat(pool.token0Price).toFixed(6),
-      token1Price: parseFloat(pool.token1Price).toFixed(6),
+      token0Price: parseFloat(pool.token0Price),
+      token1Price: parseFloat(pool.token1Price),
       token0Amount: pool.totalValueLockedToken0,
       token1Amount: pool.totalValueLockedToken1,
-      volumeUSD: pool.volumeUSD,
+      volumeUSD: parseFloat(pool.volumeUSD),
       platform: 'uniswap'
     }));
-
-    if (pools.length > 0) {
-      cache.set(cacheKey, pools);
-    }
 
     return { pools };
   } catch (error) {
