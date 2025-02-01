@@ -1,8 +1,40 @@
-import { type NewsItem, type AINewsAnalysis, type AITechnicalAnalysis } from './utils/utils';
-import { runNewsAnalysis, runTechnicalAnalysis } from './langGraph/analysisGraph';
 import { ChatOpenAI } from "@langchain/openai";
+import { BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { runNewsAnalysis, runTechnicalAnalysis } from './langGraph/analysisGraph';
 
-// Initialize OpenAI chat model for fallback
+interface NewsItem {
+  title: string;
+  url: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+}
+
+interface AINewsAnalysis {
+  sentiment: 'positive' | 'negative' | 'neutral';
+  score: number;
+  confidence: number;
+  impact: {
+    shortTerm: number;
+    longTerm: number;
+  };
+}
+
+interface AITechnicalAnalysis {
+  indicators: Array<{
+    name: string;
+    value: number;
+    signal: string;
+    confidence: number;
+    description: string;
+  }>;
+  overallSentiment: number;
+  priceRange: {
+    low: number;
+    high: number;
+    confidence: number;
+  };
+}
+
+// Initialize OpenAI chat model
 const openai = new ChatOpenAI({
   modelName: "gpt-4",
   temperature: 0.7,
@@ -15,7 +47,13 @@ async function verifyApiKey(): Promise<boolean> {
     return false;
   }
   try {
-    await openai.invoke([{ role: "system", content: "API key verification test" }]);
+    // Use a simple test message to verify the API key
+    const messages: BaseMessage[] = [
+      new SystemMessage("API key verification test"),
+      new HumanMessage("Test")
+    ];
+
+    await openai.invoke(messages);
     return true;
   } catch (error) {
     console.error('OpenAI API key verification failed:', error instanceof Error ? error.message : String(error));
@@ -98,11 +136,9 @@ export async function generatePredictionsWithAI(
       timestamp: Date.now()
     };
 
-    console.log('Generating predictions with data:', analysisData);
-    const response = await openai.invoke([
-      {
-        role: "system",
-        content: `You are a crypto price prediction expert. Using the provided technical and news analysis, generate a price range prediction that considers both technical factors and market sentiment. Focus on realistic ranges based on current volatility and market conditions.
+    const messages: BaseMessage[] = [
+      new SystemMessage(
+        `You are a crypto price prediction expert. Using the provided technical and news analysis, generate a price range prediction that considers both technical factors and market sentiment. Focus on realistic ranges based on current volatility and market conditions.
 
 Return strict JSON in this format:
 {
@@ -111,13 +147,11 @@ Return strict JSON in this format:
   "confidence": number between 0-100,
   "reasoning": string
 }`
-      },
-      {
-        role: "user",
-        content: JSON.stringify(analysisData)
-      }
-    ]);
+      ),
+      new HumanMessage(JSON.stringify(analysisData))
+    ];
 
+    const response = await openai.invoke(messages);
     const result = JSON.parse(response.content);
     console.log('Prediction result:', result);
 
