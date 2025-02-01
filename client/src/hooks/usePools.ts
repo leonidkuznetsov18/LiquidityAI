@@ -1,8 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { ethers } from 'ethers';
+import { useToast } from '@/hooks/use-toast';
 
 // Network configurations
-const INFURA_API_URL = `https://mainnet.infura.io/v3/${import.meta.env.VITE_INFURA_PROJECT_ID}`;
+const INFURA_PROJECT_ID = import.meta.env.VITE_INFURA_PROJECT_ID;
+const INFURA_API_URL = INFURA_PROJECT_ID 
+  ? `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}`
+  : null;
 const BSC_API_URL = 'https://bsc-dataseed.binance.org';
 
 // Factory addresses
@@ -15,6 +19,10 @@ const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606e48c';
 const BSC_WETH_ADDRESS = '0x2170Ed0880ac9A755fd29B2688956BD959F933F8';
 const BSC_USDC_ADDRESS = '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d';
 
+// Known working fee tiers for each platform
+const UNISWAP_FEE_TIERS = [500, 3000]; // 0.05%, 0.3% - most liquid pairs
+const PANCAKESWAP_FEE_TIERS = [2500]; // 0.25% - most liquid pair on BSC
+
 const FACTORY_ABI = [
   "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address)"
 ];
@@ -26,10 +34,6 @@ const POOL_ABI = [
   'function liquidity() external view returns (uint128)',
   'function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)',
 ];
-
-// Known working fee tiers for each platform
-const UNISWAP_FEE_TIERS = [500, 3000]; // 0.05%, 0.3% - most liquid pairs
-const PANCAKESWAP_FEE_TIERS = [2500]; // 0.25% - most liquid pair on BSC
 
 interface Pool {
   id: string;
@@ -54,9 +58,9 @@ function safeGetAddress(address: string): string {
 }
 
 async function fetchUniswapPools(): Promise<Pool[]> {
-  if (!import.meta.env.VITE_INFURA_PROJECT_ID) {
-    console.error('INFURA_PROJECT_ID is not set');
-    throw new Error('Missing INFURA_PROJECT_ID');
+  if (!INFURA_API_URL) {
+    console.error('INFURA_PROJECT_ID environment variable is not set');
+    return [];
   }
 
   try {
@@ -112,7 +116,7 @@ async function fetchUniswapPools(): Promise<Pool[]> {
     return pools;
   } catch (error) {
     console.error('Failed to initialize Ethereum provider:', error);
-    throw new Error('Unable to connect to Ethereum network');
+    return [];
   }
 }
 
@@ -170,15 +174,25 @@ async function fetchPancakeswapPools(): Promise<Pool[]> {
     return pools;
   } catch (error) {
     console.error('Failed to initialize BSC provider:', error);
-    throw new Error('Unable to connect to Binance Smart Chain');
+    return [];
   }
 }
 
 export function usePools() {
+  const { toast } = useToast();
+
   return useQuery({
     queryKey: ['/api/pools'],
     queryFn: async () => {
       try {
+        if (!INFURA_PROJECT_ID) {
+          toast({
+            title: "Configuration Error",
+            description: "Infura Project ID is not configured. Some features may be limited.",
+            variant: "destructive",
+          });
+        }
+
         const [uniswapPools, pancakeswapPools] = await Promise.all([
           fetchUniswapPools().catch(error => {
             console.error('Uniswap pools fetch failed:', error);
