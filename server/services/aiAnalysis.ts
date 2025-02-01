@@ -98,15 +98,22 @@ export async function analyzeTechnicalIndicatorsWithAI(
     const result = await runTechnicalAnalysis(currentPrice, volume24h, priceChange24h);
     console.log('Technical analysis result:', result);
 
+    // Ensure sentiment is never 0
+    const sentiment = result.overallSentiment === 0 ? 0.01 : result.overallSentiment;
+
     return {
       indicators: result.indicators.map(indicator => ({
         ...indicator,
         value: Number(indicator.value),
-        confidence: Math.max(0, Math.min(1, indicator.confidence)),
+        confidence: Math.max(0.01, Math.min(1, indicator.confidence || 0.5)),
         signal: indicator.signal.toLowerCase()
       })),
-      overallSentiment: result.overallSentiment,
-      priceRange: result.priceRange
+      overallSentiment: sentiment,
+      priceRange: {
+        low: Math.max(0, result.priceRange?.low || currentPrice * 0.95),
+        high: Math.max(result.priceRange?.low || currentPrice, result.priceRange?.high || currentPrice * 1.05),
+        confidence: Math.max(0.01, Math.min(1, result.priceRange?.confidence || 0.5))
+      }
     };
   } catch (error) {
     console.error('AI Technical Analysis failed:', error);
@@ -156,9 +163,9 @@ Return strict JSON in this format:
     console.log('Prediction result:', result);
 
     return {
-      rangeLow: Math.max(0, result.rangeLow || 0),
-      rangeHigh: Math.max(result.rangeLow || 0 + 1, result.rangeHigh || 0),
-      confidence: Math.max(0, Math.min(100, result.confidence || 50)),
+      rangeLow: Math.max(0, result.rangeLow || price * 0.95),
+      rangeHigh: Math.max(result.rangeLow || price, result.rangeHigh || price * 1.05),
+      confidence: Math.max(1, Math.min(100, result.confidence || 50)),
       timestamp: Date.now()
     };
   } catch (error) {

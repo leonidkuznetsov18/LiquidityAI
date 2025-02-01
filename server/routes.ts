@@ -88,8 +88,16 @@ export function registerRoutes(app: Express): Server {
         []
       );
 
+      if (!technicalAnalysis) {
+        throw new Error('Failed to generate technical analysis');
+      }
+
       const newsData = await getCryptoNews();
       const newsAnalysis = await analyzeNewsWithAI(newsData.news.headlines);
+
+      if (!newsAnalysis) {
+        throw new Error('Failed to analyze news data');
+      }
 
       const predictions = await generatePredictionsWithAI(
         ethData.price,
@@ -101,7 +109,19 @@ export function registerRoutes(app: Express): Server {
         throw new Error('Failed to generate predictions');
       }
 
-      res.json(predictions);
+      res.json({
+        ...predictions,
+        technicalAnalysis: {
+          sentiment: technicalAnalysis.overallSentiment,
+          marketTrend: technicalAnalysis.indicators[0]?.signal || 'neutral',
+          confidence: technicalAnalysis.priceRange.confidence
+        },
+        newsImpact: {
+          sentiment: newsAnalysis.sentiment,
+          shortTerm: newsAnalysis.impact.shortTerm,
+          longTerm: newsAnalysis.impact.longTerm
+        }
+      });
     } catch (error) {
       console.error('Prediction error:', error);
       res.status(500).json({ 
