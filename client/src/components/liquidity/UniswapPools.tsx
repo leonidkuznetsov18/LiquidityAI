@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { connectWallet, disconnectWallet, getEtherscanLink } from "@/lib/web3";
-import { Loader2, ExternalLink, Power } from "lucide-react";
+import { Loader2, ExternalLink, Power, RefreshCw } from "lucide-react";
 import { formatEther } from "ethers";
 import { usePools } from "@/hooks/usePools";
 import {
@@ -20,7 +20,7 @@ export default function UniswapPools() {
   const [isConnected, setIsConnected] = useState(false);
   const [address, setAddress] = useState<string | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>('all');
-  const { data: pools, isLoading, refetch } = usePools();
+  const { data: pools, isLoading, refetch, isRefetching } = usePools();
   const { toast } = useToast();
 
   const handleConnect = async () => {
@@ -29,6 +29,7 @@ export default function UniswapPools() {
       if (account) {
         setAddress(account);
         setIsConnected(true);
+        refetch(); // Refresh pools after connecting
       }
     } catch (error) {
       console.error('Failed to connect wallet:', error);
@@ -44,6 +45,10 @@ export default function UniswapPools() {
     await disconnectWallet();
     setIsConnected(false);
     setAddress(null);
+  };
+
+  const handleRefresh = () => {
+    refetch();
   };
 
   const formatLiquidity = (amount: string) => {
@@ -98,20 +103,17 @@ export default function UniswapPools() {
               <SelectItem value="pancakeswap">PancakeSwap V3</SelectItem>
             </SelectContent>
           </Select>
-          {isConnected && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Refresh"
-              )}
-            </Button>
-          )}
+
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isLoading || isRefetching}
+            className={isRefetching ? "animate-spin" : ""}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+
           <Button
             onClick={isConnected ? handleDisconnect : handleConnect}
             variant={isConnected ? "outline" : "default"}
@@ -193,7 +195,7 @@ export default function UniswapPools() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => refetch()}
+                onClick={handleRefresh}
                 className="mt-4"
               >
                 Try Again
