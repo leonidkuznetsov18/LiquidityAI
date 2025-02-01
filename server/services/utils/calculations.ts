@@ -86,18 +86,9 @@ export function getVPVRSignal(volume: number, price: number): 'buy' | 'sell' | '
 }
 
 // Calculate overall sentiment based on all indicators
-export function calculateOverallSentiment(price: number, volume: number): number {
-  // Get all signals
-  const signals = [
-    getEMASignal(price, 14),
-    getMACDSignal(price),
-    getRSISignal(price),
-    getStochRSISignal(price),
-    getBBSignal(price),
-    getATRSignal(price),
-    getFibonacciSignal(price),
-    getVPVRSignal(volume, price)
-  ];
+export function calculateOverallSentiment(indicators: TechnicalIndicator[]): number {
+  // Get all signals from the indicators
+  const signals = indicators.map(i => i.signal);
 
   // Convert signals to numeric values
   const numericSignals = signals.map(signal => {

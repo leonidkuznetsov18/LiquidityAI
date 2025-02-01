@@ -66,7 +66,8 @@ export function registerRoutes(app: Express): Server {
           sell: ethData.volume_24h * (ethData.price_change_24h > 0 ? 0.4 : 0.6),
         },
         indicators: aiAnalysis.indicators,
-        sentiment: aiAnalysis.overallSentiment || 0.01, // Ensure non-zero sentiment
+        sentiment: aiAnalysis.overallSentiment || 0.01,
+        trend: aiAnalysis.trend || 'neutral',
       });
     } catch (error) {
       console.error('Market data error:', error);
@@ -88,7 +89,6 @@ export function registerRoutes(app: Express): Server {
         []
       );
 
-      // Ensure technical analysis exists
       if (!technicalAnalysis) {
         throw new Error('Failed to generate technical analysis');
       }
@@ -96,7 +96,6 @@ export function registerRoutes(app: Express): Server {
       const newsData = await getCryptoNews();
       const newsAnalysis = await analyzeNewsWithAI(newsData.news.headlines);
 
-      // Ensure news analysis exists and has required properties
       if (!newsAnalysis || !newsAnalysis.impact) {
         throw new Error('Failed to analyze news data');
       }
@@ -111,12 +110,11 @@ export function registerRoutes(app: Express): Server {
         throw new Error('Failed to generate predictions');
       }
 
-      // Construct response with null checks
       const response = {
         ...predictions,
         technicalAnalysis: {
           sentiment: technicalAnalysis.overallSentiment || 0.01,
-          marketTrend: technicalAnalysis.indicators[0]?.signal || 'neutral',
+          marketTrend: technicalAnalysis.trend || 'neutral',
           confidence: technicalAnalysis.priceRange?.confidence || 0.5
         },
         newsImpact: {

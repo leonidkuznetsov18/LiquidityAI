@@ -18,6 +18,8 @@ export interface MarketData {
     description: string;
     learnMoreUrl: string;
   }>;
+  sentiment: number;
+  trend: string;
 }
 
 export function useMarketData() {

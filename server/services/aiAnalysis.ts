@@ -4,6 +4,7 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { JsonOutputParser } from "@langchain/core/output_parsers";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { runNewsAnalysis, runTechnicalAnalysis } from './langGraph/analysisGraph';
+import { calculateOverallSentiment, getDefaultIndicators, getMarketTrend } from './utils/calculations';
 
 interface NewsItem {
   title: string;
@@ -21,6 +22,13 @@ interface AINewsAnalysis {
   };
 }
 
+interface TechnicalIndicator {
+  name: string;
+  value: number;
+  signal: 'buy' | 'sell' | 'neutral';
+  confidence: number;
+}
+
 interface AITechnicalAnalysis {
   indicators: Array<{
     name: string;
@@ -35,6 +43,7 @@ interface AITechnicalAnalysis {
     high: number;
     confidence: number;
   };
+  trend: string;
 }
 
 const predictionSchema = z.object({
@@ -95,21 +104,42 @@ export async function analyzeTechnicalIndicatorsWithAI(
   currentPrice: number,
   volume24h: number,
   priceChange24h: number,
-  existingIndicators: any[]
+  existingIndicators?: TechnicalIndicator[]
 ): Promise<AITechnicalAnalysis> {
   try {
     if (!await verifyApiKey()) {
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    console.log('Analyzing technical data:', { currentPrice, volume24h, priceChange24h });
+    // Get calculated indicators if not provided
+    const indicators = existingIndicators || getDefaultIndicators(currentPrice, volume24h);
+    const sentiment = calculateOverallSentiment(indicators);
+    const trend = getMarketTrend(
+      currentPrice,
+      indicators.find(i => i.name === 'EMA (14)')?.value || 0,
+      indicators.find(i => i.name === 'RSI')?.value || 0,
+      indicators.find(i => i.name === 'MACD')?.value || 0
+    );
+
+    console.log('Analyzing technical data:', { currentPrice, volume24h, priceChange24h, indicators });
     const result = await runTechnicalAnalysis(currentPrice, volume24h, priceChange24h);
     console.log('Technical analysis result:', result);
 
     return {
-      indicators: result.indicators,
-      overallSentiment: result.overallSentiment,
-      priceRange: result.priceRange
+      indicators: indicators.map(i => ({
+        name: i.name,
+        value: i.value,
+        signal: result.indicators.find(ai => ai.name === i.name)?.signal || i.signal || 'neutral',
+        confidence: Math.max(0.01, result.indicators.find(ai => ai.name === i.name)?.confidence || 0.5),
+        description: result.indicators.find(ai => ai.name === i.name)?.description || ''
+      })),
+      overallSentiment: Math.max(0.01, result.overallSentiment),
+      priceRange: {
+        low: Math.max(currentPrice * 0.95, result.priceRange.low),
+        high: Math.max(currentPrice * 1.05, result.priceRange.high),
+        confidence: Math.max(0.5, result.priceRange.confidence)
+      },
+      trend
     };
   } catch (error) {
     console.error('AI Technical Analysis failed:', error);
@@ -143,6 +173,7 @@ export async function generatePredictionsWithAI(
 Analyze this crypto market data to generate price prediction:
 - Current price: ${price}
 - Technical indicators: ${JSON.stringify(technicalAnalysis.indicators.map(i => ({ name: i.name, signal: i.signal })))}
+- Market trend: ${technicalAnalysis.trend}
 - Market sentiment: ${technicalAnalysis.overallSentiment}
 - News sentiment: ${newsAnalysis.sentiment}
 - Short-term impact: ${newsAnalysis.impact.shortTerm}

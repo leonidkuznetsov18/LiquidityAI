@@ -55,7 +55,7 @@ export async function getTechnicalIndicators() {
   const sellVolume = volume * (priceChange > 0 ? 0.4 : 0.6);
 
   const indicators = getDefaultIndicators(data.price, volume);
-  const sentiment = calculateOverallSentiment(data.price, volume);
+  const sentiment = calculateOverallSentiment(indicators); // Now passing the indicators array
 
   return {
     price24h: {
