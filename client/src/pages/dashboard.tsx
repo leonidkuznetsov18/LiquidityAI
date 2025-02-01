@@ -10,6 +10,7 @@ import { usePredictions } from "@/hooks/usePredictions";
 import { formatDistanceToNow } from "date-fns";
 import { RefreshCw } from "lucide-react";
 import PredictionExplanationDialog from "@/components/analysis/PredictionExplanationDialog";
+import { useSentiment } from "@/hooks/useSentiment";
 
 export default function Dashboard() {
   const { data: marketData, isLoading: marketLoading, refetch: refetchMarket } = useMarketData();
@@ -20,9 +21,12 @@ export default function Dashboard() {
     isLoading: predictionLoading,
   } = usePredictions();
 
-  const handleRefresh = async () => {
-    await refetchMarket(); // First update market data
-    await refetchPredictions(); // Then update predictions
+  const { refetch: refetchSantiment } = useSentiment()
+
+  const handleRefresh = () => {
+    refetchMarket(); 
+    refetchPredictions(); 
+    refetchSantiment()
   };
 
   return (
