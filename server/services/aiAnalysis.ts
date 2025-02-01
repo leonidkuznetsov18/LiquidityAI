@@ -1,7 +1,7 @@
 import OpenAI from "openai";
-import { 
-  NewsItem, 
-  AINewsAnalysis, 
+import {
+  NewsItem,
+  AINewsAnalysis,
   AITechnicalAnalysis,
   REQUIRED_INDICATORS,
   TECHNICAL_ANALYSIS
@@ -11,7 +11,7 @@ import {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // The newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const MODEL = "gpt-3.5-turbo";
+const MODEL = "gpt-4o";
 
 // Verify OpenAI API key validity
 async function verifyApiKey(): Promise<boolean> {
@@ -33,8 +33,8 @@ async function verifyApiKey(): Promise<boolean> {
 }
 
 async function refineNewsAnalysis(
-  analysis: AINewsAnalysis,
-  headlines: NewsItem[]
+    analysis: AINewsAnalysis,
+    headlines: NewsItem[]
 ): Promise<AINewsAnalysis> {
   try {
     const response = await openai.chat.completions.create({
@@ -52,12 +52,12 @@ async function refineNewsAnalysis(
           2. Source Credibility
           3. Time Relevance
           4. Market Context
-          
+
           Current analysis:
           - Sentiment: ${analysis.sentiment}
           - Score: ${analysis.score}
           - Confidence: ${analysis.confidence}
-          
+
           Return refined JSON analysis with detailed reasoning.`
         },
         {
@@ -96,31 +96,31 @@ export async function analyzeNewsWithAI(headlines: NewsItem[]): Promise<AINewsAn
         {
           role: "system",
           content: `You are a crypto market expert specializing in news analysis. Analyze the provided headlines for market impact.
-          
+
 Sentiment Classification Rules:
 POSITIVE indicators:
 - Adoption/Integration: 'partnership', 'integration', 'launch', 'adoption'
 - Development: 'upgrade', 'improvement', 'milestone', 'achievement'
 - Market Growth: 'surge', 'rally', 'breakthrough', 'record'
 - Institutional Interest: 'investment', 'institutional', 'fund', 'acquisition'
-          
+
 NEGATIVE indicators:
 - Security Issues: 'hack', 'breach', 'vulnerability', 'exploit'
 - Regulatory: 'ban', 'restriction', 'crackdown', 'regulation'
 - Market Decline: 'crash', 'decline', 'dump', 'selloff'
 - Technical Problems: 'bug', 'issue', 'delay', 'failure'
-          
+
 NEUTRAL indicators:
 - Updates: 'maintenance', 'update', 'announcement'
 - Research: 'study', 'analysis', 'review'
 - Market Movement: 'volatility', 'fluctuation'
-          
+
 For each headline:
 1. Identify key terms from the classification rules
 2. Consider context and magnitude
 3. Assess market impact probability
 4. Calculate confidence based on source reliability and clarity
-          
+
 Return a JSON object with:
 {
   "sentiment": "positive" | "negative" | "neutral",
@@ -163,10 +163,10 @@ Return a JSON object with:
 }
 
 async function refineTechnicalAnalysis(
-  analysis: AITechnicalAnalysis,
-  currentPrice: number,
-  volume24h: number,
-  priceChange24h: number
+    analysis: AITechnicalAnalysis,
+    currentPrice: number,
+    volume24h: number,
+    priceChange24h: number
 ): Promise<AITechnicalAnalysis> {
   try {
     const response = await openai.chat.completions.create({
@@ -175,15 +175,15 @@ async function refineTechnicalAnalysis(
         {
           role: "system",
           content: `You are a crypto technical analysis expert. Review and refine the previous technical analysis:
-          
+
 Current Market Data:
 - Price: $${currentPrice}
 - 24h Volume: $${volume24h}
 - 24h Price Change: $${priceChange24h}
-          
+
 Previous Analysis:
 ${JSON.stringify(analysis, null, 2)}
-          
+
 Refine the analysis considering:
 1. Signal Confirmation:
    - Multiple timeframe alignment
@@ -196,7 +196,7 @@ Refine the analysis considering:
    - Current market phase
    - Support/resistance levels
    - Volume profile
-          
+
 Return refined JSON analysis with improved confidence scores and detailed reasoning.`
         },
         {
@@ -228,11 +228,11 @@ Return refined JSON analysis with improved confidence scores and detailed reason
   }
 }
 
-async function analyzeTechnicalIndicatorsWithAI(
-  currentPrice: number,
-  volume24h: number,
-  priceChange24h: number,
-  existingIndicators: any[]
+export async function analyzeTechnicalIndicatorsWithAI(
+    currentPrice: number,
+    volume24h: number,
+    priceChange24h: number,
+    existingIndicators: any[]
 ): Promise<AITechnicalAnalysis> {
   try {
     if (!await verifyApiKey()) {
@@ -260,7 +260,10 @@ async function analyzeTechnicalIndicatorsWithAI(
         {
           role: "system",
           content: `You are an expert crypto technical analyst. Analyze the following indicators with specific value validation rules:
-
+- Analyze the market data using these indicators:
+          ${Object.values(REQUIRED_INDICATORS).map(indicator =>
+              `${indicator.name}: ${indicator.description}`
+          ).join('\n')}
 Technical Indicator Validation Rules:
 1. EMA (Exponential Moving Average):
    - Value must be within ±5% of current price
@@ -336,41 +339,24 @@ Return a detailed JSON with:
 
     const analysis = JSON.parse(response.choices[0].message.content);
 
-    // Map and validate the AI analysis
-    const normalizedIndicators = REQUIRED_INDICATORS.map(requiredIndicator => {
-      const aiIndicator = analysis.indicators.find(
-        (i: any) => i.name.toLowerCase().includes(requiredIndicator.name.toLowerCase())
-      ) || {
-        value: 0,
-        signal: 'neutral',
-        confidence: 0.5
-      };
-
-      // Ensure the value is within reasonable bounds
-      let normalizedValue = Number(aiIndicator.value);
-      if (isNaN(normalizedValue) || !isFinite(normalizedValue)) {
-        normalizedValue = 0;
-      }
-
-      return {
-        name: requiredIndicator.fullName,
-        value: normalizedValue,
-        signal: aiIndicator.signal?.toLowerCase() || 'neutral',
-        confidence: Math.max(0, Math.min(1, aiIndicator.confidence || 0.5)),
-        description: requiredIndicator.description,
-        learnMoreUrl: requiredIndicator.learnMoreUrl
-      };
-    });
-
-    return {
-      indicators: normalizedIndicators,
+    // Normalize initial analysis
+    const initialAnalysis: AITechnicalAnalysis = {
+      indicators: analysis.indicators?.map((indicator: any) => ({
+        ...indicator,
+        value: Number(indicator.value) || 0,
+        confidence: Math.max(0, Math.min(1, indicator.confidence || 0.5)),
+        signal: indicator.signal?.toLowerCase() || 'neutral'
+      })) || [],
       overallSentiment: Math.max(-1, Math.min(1, analysis.overallSentiment || 0)),
       priceRange: {
-        low: Math.max(currentPrice * 0.92, analysis.priceRange?.low || currentPrice * 0.95),
-        high: Math.min(currentPrice * 1.08, analysis.priceRange?.high || currentPrice * 1.05),
+        low: Math.max(0, analysis.priceRange?.low || 0),
+        high: Math.max(analysis.priceRange?.low || 1, analysis.priceRange?.high || 0),
         confidence: Math.max(0, Math.min(1, analysis.priceRange?.confidence || 0.5))
       }
     };
+
+    // Refine the analysis
+    return await refineTechnicalAnalysis(initialAnalysis, currentPrice, volume24h, priceChange24h);
 
   } catch (error) {
     console.error('AI Technical Analysis failed:', error);
@@ -380,9 +366,9 @@ Return a detailed JSON with:
 
 // Update the generatePredictionsWithAI function with a more focused prompt
 export async function generatePredictionsWithAI(
-  price: number,
-  technicalAnalysis: AITechnicalAnalysis,
-  newsAnalysis: AINewsAnalysis
+    price: number,
+    technicalAnalysis: AITechnicalAnalysis,
+    newsAnalysis: AINewsAnalysis
 ): Promise<{
   rangeLow: number;
   rangeHigh: number;
@@ -445,5 +431,3 @@ Return JSON:
     throw error;
   }
 }
-
-export { analyzeTechnicalIndicatorsWithAI };
