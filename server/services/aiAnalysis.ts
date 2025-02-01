@@ -385,20 +385,19 @@ export async function generatePredictionsWithAI(
       messages: [
         {
           role: "system",
-          content: `You are a crypto price prediction expert. Analyze the data and provide a price range prediction.
-
-Guidelines:
-- Base prediction primarily on technical indicators (70% weight)
-- Consider news sentiment (30% weight)
-- Keep range within ±12% of current price
-- Adjust confidence based on signal agreement and volume
+          content: `Analyze the current crypto market data and technical indicators to predict a price range.
+Rules:
+- Use technical indicators (70%) and news sentiment (30%)
+- Range must be within ±8% of current price
+- Higher confidence requires tighter range
+- Consider volume confirmation
 
 Return JSON:
 {
-  "rangeLow": number,       // > currentPrice * 0.88
-  "rangeHigh": number,      // < currentPrice * 1.12
-  "confidence": number,     // 0-100
-  "explanation": string     // Brief reasoning
+  "rangeLow": number,  // > currentPrice * 0.92
+  "rangeHigh": number, // < currentPrice * 1.08
+  "confidence": number,// 0-100
+  "explanation": string// Brief technical reasoning
 }`
         },
         {
