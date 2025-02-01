@@ -7,23 +7,23 @@ const INFURA_PROJECT_ID = import.meta.env.VITE_INFURA_PROJECT_ID;
 const INFURA_API_URL = INFURA_PROJECT_ID 
   ? `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}`
   : null;
-console.log('INFURA_PROJECT_ID', INFURA_PROJECT_ID)
-console.log('INFURA_API_URL', INFURA_API_URL)
 const BSC_API_URL = 'https://bsc-dataseed.binance.org';
 
 // Factory addresses
 const UNISWAP_V3_FACTORY = '0x1F98431c8aD98523631AE4a59f267346ea31F984';
-const PANCAKESWAP_V3_FACTORY = '0x1097053Fd2ea711dad45caCcc45EfF7548fCB362';
+// Updated PancakeSwap V3 factory address
+const PANCAKESWAP_V3_FACTORY = '0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865';
 
 // Token addresses
 const ETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+// Updated BSC token addresses
 const BSC_WETH_ADDRESS = '0x2170Ed0880ac9A755fd29B2688956BD959F933F8';
 const BSC_USDC_ADDRESS = '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d';
 
 // Known working fee tiers for each platform
 const UNISWAP_FEE_TIERS = [500, 3000]; // 0.05%, 0.3% - most liquid pairs
-const PANCAKESWAP_FEE_TIERS = [2500]; // 0.25% - most liquid pair on BSC
+const PANCAKESWAP_FEE_TIERS = [500, 2500, 10000]; // PancakeSwap V3 supported fee tiers
 
 const FACTORY_ABI = [
   "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address)"
@@ -59,7 +59,6 @@ async function fetchUniswapPools(): Promise<Pool[]> {
     const provider = new ethers.JsonRpcProvider(INFURA_API_URL);
     await provider.getNetwork(); // Verify provider connection
 
-    // Create contract instance
     const factoryContract = new ethers.Contract(
       UNISWAP_V3_FACTORY,
       FACTORY_ABI,
@@ -129,11 +128,12 @@ async function fetchPancakeswapPools(): Promise<Pool[]> {
 
     for (const feeTier of PANCAKESWAP_FEE_TIERS) {
       try {
+        // Verify the pool exists first
         const poolAddress = await factoryContract.getPool(
           BSC_WETH_ADDRESS,
           BSC_USDC_ADDRESS,
           feeTier
-        );
+        ).catch(() => ethers.ZeroAddress);
 
         if (poolAddress && poolAddress !== ethers.ZeroAddress) {
           const poolContract = new ethers.Contract(poolAddress, POOL_ABI, provider);
@@ -162,6 +162,7 @@ async function fetchPancakeswapPools(): Promise<Pool[]> {
           });
         }
       } catch (error) {
+        // Log error but continue with other fee tiers
         console.error(`Failed to fetch PancakeSwap pool for fee tier ${feeTier}:`, error);
       }
     }
@@ -200,6 +201,8 @@ export function usePools() {
         ]);
 
         const allPools = [...uniswapPools, ...pancakeswapPools];
+
+        // Only throw if we have no pools at all
         if (allPools.length === 0) {
           throw new Error('No pools available from either platform');
         }
