@@ -123,6 +123,16 @@ export default function TechnicalIndicators({ data, isLoading }: Props) {
                   <TooltipContent>
                     <div className="max-w-xs">
                       <p className="text-sm">{indicator.description}</p>
+                      {indicator.learnMoreUrl && (
+                        <a
+                          href={indicator.learnMoreUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline mt-1 block"
+                        >
+                          Learn more →
+                        </a>
+                      )}
                     </div>
                   </TooltipContent>
                 </Tooltip>

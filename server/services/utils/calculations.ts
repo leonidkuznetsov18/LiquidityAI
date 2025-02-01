@@ -1,3 +1,5 @@
+import { TECHNICAL_INDICATORS } from './utils';
+
 // Types for technical analysis
 export interface TechnicalIndicator {
   name: string;
@@ -69,19 +71,6 @@ export function calculateVPVR(volume: number, price: number): number {
   return (volume * price) / 1000000; // Simplified VPVR calculation
 }
 
-// Trend analysis
-export function getMarketTrend(price: number, ema: number, rsi: number, macd: number): 'bullish' | 'bearish' | 'sideways' {
-  const trendScore = [
-    price > ema ? 1 : -1, // Price above EMA is bullish
-    rsi > 50 ? 1 : -1, // RSI above 50 is bullish
-    macd > 0 ? 1 : -1 // Positive MACD is bullish
-  ].reduce((sum, score) => sum + score, 0);
-
-  if (trendScore > 1) return 'bullish';
-  if (trendScore < -1) return 'bearish';
-  return 'sideways';
-}
-
 // Signal generation functions
 export function getEMASignal(price: number, period: number): 'buy' | 'sell' | 'neutral' {
   const ema = calculateEMA(price, period);
@@ -135,52 +124,58 @@ export function getDefaultIndicators(price: number, volume?: number): TechnicalI
 
   return [
     {
+      ...TECHNICAL_INDICATORS.EMA,
       name: 'EMA (14)',
       value: ema14,
-      signal: getEMASignal(price, 14),
-      description: 'Exponential Moving Average gives more weight to recent prices, making it more responsive to new information.'
+      signal: getEMASignal(price, 14)
     },
     {
-      name: 'MACD',
+      ...TECHNICAL_INDICATORS.MACD,
       value: macd,
-      signal: getMACDSignal(price),
-      description: 'Moving Average Convergence Divergence shows the relationship between two moving averages of an asset\'s price.'
+      signal: getMACDSignal(price)
     },
     {
-      name: 'RSI',
+      ...TECHNICAL_INDICATORS.RSI,
       value: rsi,
-      signal: getRSISignal(price),
-      description: 'Relative Strength Index measures the speed and magnitude of recent price changes to evaluate overbought or oversold conditions.'
+      signal: getRSISignal(price)
     },
     {
-      name: 'Stoch RSI',
+      ...TECHNICAL_INDICATORS.STOCH_RSI,
       value: calculateStochRSI(price),
-      signal: getStochRSISignal(price),
-      description: 'Stochastic RSI is an oscillator that measures the level of RSI relative to its high-low range over a specific period.'
+      signal: getStochRSISignal(price)
     },
     {
-      name: 'Bollinger Bands',
+      ...TECHNICAL_INDICATORS.BB,
       value: calculateBB(price),
-      signal: getBBSignal(price),
-      description: 'Bollinger Bands measure volatility by plotting standard deviations around a simple moving average.'
+      signal: getBBSignal(price)
     },
     {
-      name: 'ATR',
+      ...TECHNICAL_INDICATORS.ATR,
       value: calculateATR(price),
-      signal: getATRSignal(price),
-      description: 'Average True Range measures market volatility by decomposing the entire range of an asset price for a period.'
+      signal: getATRSignal(price)
     },
     {
-      name: 'Fibonacci',
+      ...TECHNICAL_INDICATORS.FIBONACCI,
       value: calculateFibonacci(price),
-      signal: getFibonacciSignal(price),
-      description: 'Fibonacci Retracement Levels identify potential support/resistance levels based on Fibonacci ratios.'
+      signal: getFibonacciSignal(price)
     },
     {
-      name: 'VPVR',
+      ...TECHNICAL_INDICATORS.VPVR,
       value: volume ? calculateVPVR(volume, price) : 0,
-      signal: volume ? getVPVRSignal(volume, price) : 'neutral',
-      description: 'Volume Profile Visible Range shows trading activity at specific price levels, helping identify support and resistance.'
+      signal: volume ? getVPVRSignal(volume, price) : 'neutral'
     }
   ];
+}
+
+// Trend analysis
+export function getMarketTrend(price: number, ema: number, rsi: number, macd: number): 'bullish' | 'bearish' | 'sideways' {
+  const trendScore = [
+    price > ema ? 1 : -1, // Price above EMA is bullish
+    rsi > 50 ? 1 : -1, // RSI above 50 is bullish
+    macd > 0 ? 1 : -1 // Positive MACD is bullish
+  ].reduce((sum, score) => sum + score, 0);
+
+  if (trendScore > 1) return 'bullish';
+  if (trendScore < -1) return 'bearish';
+  return 'sideways';
 }
