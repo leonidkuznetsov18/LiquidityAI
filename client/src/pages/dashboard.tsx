@@ -4,19 +4,11 @@ import TradingViewChart from "@/components/analysis/TradingViewChart";
 import TechnicalIndicators from "@/components/analysis/TechnicalIndicators";
 import SentimentPanel from "@/components/analysis/SentimentPanel";
 import RangeAdjuster from "@/components/liquidity/RangeAdjuster";
-import UniswapPools from "@/components/liquidity/UniswapPools";
 import Sidebar from "@/components/layout/Sidebar";
 import { useMarketData } from "@/hooks/useMarketData";
 import { usePredictions } from "@/hooks/usePredictions";
 import { formatDistanceToNow } from "date-fns";
 import { RefreshCw } from "lucide-react";
-
-interface Predictions {
-  rangeLow: number;
-  rangeHigh: number;
-  confidence: number;
-  timestamp: number;
-}
 
 export default function Dashboard() {
   const { data: marketData, isLoading: marketLoading } = useMarketData();
@@ -84,10 +76,6 @@ export default function Dashboard() {
 
           <Card className="p-4">
             <RangeAdjuster predictions={predictions} />
-          </Card>
-
-          <Card className="col-span-2 p-4">
-            <UniswapPools />
           </Card>
         </div>
       </main>

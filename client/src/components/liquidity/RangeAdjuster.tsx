@@ -1,10 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { Range, getTrackBackground } from "react-range";
-import { connectWallet } from "@/lib/web3";
 
 interface Props {
   predictions?: {
@@ -15,7 +12,6 @@ interface Props {
 }
 
 export default function RangeAdjuster({ predictions }: Props) {
-  const { toast } = useToast();
   const [range, setRange] = useState<[number, number]>([
     predictions?.rangeLow || 1800,
     predictions?.rangeHigh || 2200,
@@ -26,30 +22,6 @@ export default function RangeAdjuster({ predictions }: Props) {
       setRange([predictions.rangeLow, predictions.rangeHigh]);
     }
   }, [predictions]);
-
-  const handleApply = async () => {
-    try {
-      const account = await connectWallet();
-      if (!account) return;
-
-      await apiRequest("POST", "/api/range", {
-        low: range[0],
-        high: range[1],
-        account,
-      });
-
-      toast({
-        title: "Range Updated",
-        description: "New liquidity range has been set successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update range. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleReset = () => {
     if (predictions) {
@@ -146,9 +118,6 @@ export default function RangeAdjuster({ predictions }: Props) {
         </div>
 
         <div className="flex gap-4">
-          <Button onClick={handleApply} className="flex-1">
-            Apply Range
-          </Button>
           <Button
             variant="outline"
             onClick={handleReset}

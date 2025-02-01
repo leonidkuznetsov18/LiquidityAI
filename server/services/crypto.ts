@@ -50,18 +50,26 @@ export async function getTechnicalIndicators() {
   const priceChange = data.price_change_24h;
   const volume = data.volume_24h;
 
+  // Calculate buy/sell volume based on price direction
+  const buyVolume = volume * (priceChange > 0 ? 0.6 : 0.4);
+  const sellVolume = volume * (priceChange > 0 ? 0.4 : 0.6);
+
+  const indicators = getDefaultIndicators(data.price, volume);
+  const sentiment = calculateOverallSentiment(data.price, volume);
+
   return {
     price24h: {
       current: data.price,
-      change: data.price_change_24h,
-      changePercentage: (data.price_change_24h / data.price) * 100,
+      change: priceChange,
+      changePercentage: (priceChange / data.price) * 100,
     },
     volume24h: {
-      total: data.volume_24h,
-      buy: volume * (priceChange > 0 ? 0.6 : 0.4),
-      sell: volume * (priceChange > 0 ? 0.4 : 0.6),
+      total: volume,
+      buy: buyVolume,
+      sell: sellVolume,
     },
-    indicators: getDefaultIndicators(data.price, volume)
+    indicators: indicators,
+    sentiment: Math.max(0.01, sentiment), // Ensure sentiment is never 0
   };
 }
 

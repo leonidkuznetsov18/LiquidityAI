@@ -44,73 +44,72 @@ const technicalAnalysisSchema = z.object({
 });
 
 const systemPromptNews = `You are a crypto market expert specializing in news analysis. 
-Analyze the provided headlines for market impact.
+Return ONLY valid JSON without any additional text or apologies. Follow this exact format:
+{
+  "sentiment": "positive" | "negative" | "neutral",
+  "score": number from 0 to 1,
+  "confidence": number from 0 to 1,
+  "impact": {
+    "shortTerm": number from 0 to 1,
+    "longTerm": number from 0 to 1
+  },
+  "reasoning": "string"
+}
 
-Sentiment Classification Rules:
-POSITIVE: partnerships, launches, upgrades, growth
-NEGATIVE: hacks, bans, crashes, technical issues
-NEUTRAL: updates, research, regular market movement
-
-Return a JSON response with:
-- sentiment: "positive", "negative", or "neutral"
-- score: number from 0 to 1
-- confidence: number from 0 to 1
-- impact: object with shortTerm and longTerm (0-1)
-- reasoning: explanation string`;
+Classification Rules:
+- POSITIVE: partnerships, launches, upgrades, growth
+- NEGATIVE: hacks, bans, crashes, technical issues
+- NEUTRAL: updates, research, regular market movement`;
 
 const systemPromptTechnical = `You are an expert crypto technical analyst.
-Analyze the market data and technical indicators provided.
-
-Key Indicators Analyzed:
-- EMA (Exponential Moving Average)
-- MACD (Moving Average Convergence Divergence)
-- RSI (Relative Strength Index)
-- Stochastic RSI
-- Bollinger Bands (BB)
-- ATR (Average True Range)
-- Fibonacci Retracement
-- VPVR (Volume Profile Visible Range)
-
-Return a JSON response with:
-- indicators: array of the above indicators with values
-- marketTrend: current market trend analysis
-- overallSentiment: weighted sentiment score
-- volumeAnalysis: volume-based analysis
-- priceRange: predicted range with confidence`;
+Return ONLY valid JSON without any additional text or apologies. Follow this exact format:
+{
+  "indicators": [
+    {
+      "name": "string",
+      "value": number,
+      "signal": "buy" | "sell" | "neutral",
+      "confidence": number from 0 to 1,
+      "description": "string"
+    }
+  ],
+  "overallSentiment": number from -1 to 1 (never return 0),
+  "priceRange": {
+    "low": number greater than 0,
+    "high": number greater than low,
+    "confidence": number from 0 to 1
+  }
+}`;
 
 // Create prompt templates
 const newsAnalysisPrompt = ChatPromptTemplate.fromMessages([
   SystemMessagePromptTemplate.fromTemplate(systemPromptNews),
-  HumanMessagePromptTemplate.fromTemplate("Headlines for analysis: {headlines}")
+  HumanMessagePromptTemplate.fromTemplate("Headlines to analyze: {headlines}")
 ]);
 
 const technicalAnalysisPrompt = ChatPromptTemplate.fromMessages([
   SystemMessagePromptTemplate.fromTemplate(systemPromptTechnical),
-  HumanMessagePromptTemplate.fromTemplate("Analysis data - Price: {price}, Volume: {volume}, Change: {change}")
+  HumanMessagePromptTemplate.fromTemplate("Market data: Price={price}, Volume={volume}, Change={change}")
 ]);
 
-// Create chains
-export const createNewsAnalysisChain = () => {
-  const outputParser = new JsonOutputParser();
-  const chain = RunnableSequence.from([
+// Create chains with proper response format
+const createNewsAnalysisChain = () => {
+  return RunnableSequence.from([
     newsAnalysisPrompt,
-    model,
-    outputParser
+    model.bind({ response_format: { type: "json_object" } }),
+    new JsonOutputParser()
   ]);
-  return chain;
 };
 
-export const createTechnicalAnalysisChain = () => {
-  const outputParser = new JsonOutputParser();
-  const chain = RunnableSequence.from([
+const createTechnicalAnalysisChain = () => {
+  return RunnableSequence.from([
     technicalAnalysisPrompt,
-    model,
-    outputParser
+    model.bind({ response_format: { type: "json_object" } }),
+    new JsonOutputParser()
   ]);
-  return chain;
 };
 
-// Export functions
+// Export functions with fallback handling
 export async function runNewsAnalysis(headlines: string): Promise<any> {
   try {
     const chain = createNewsAnalysisChain();
@@ -120,16 +119,24 @@ export async function runNewsAnalysis(headlines: string): Promise<any> {
     return result;
   } catch (error) {
     console.error('News analysis chain failed:', error);
-    throw error;
+    // Return fallback values on error
+    return {
+      sentiment: "neutral",
+      score: 0.5,
+      confidence: 0.5,
+      impact: {
+        shortTerm: 0.5,
+        longTerm: 0.5
+      },
+      reasoning: "Analysis failed, using fallback values"
+    };
   }
 }
 
 export async function runTechnicalAnalysis(price: number, volume: number, priceChange: number): Promise<any> {
   try {
-    // Get technical indicators
+    // Get technical indicators from our calculations
     const indicators = getDefaultIndicators(price, volume);
-
-    // Calculate overall sentiment ensuring it's never 0
     const sentiment = calculateOverallSentiment(price, volume);
 
     // Get market trend
@@ -138,29 +145,39 @@ export async function runTechnicalAnalysis(price: number, volume: number, priceC
     const macd = indicators.find(i => i.name === 'MACD')?.value || 0;
     const trend = getMarketTrend(price, ema, rsi, macd);
 
-    // Prepare enhanced analysis data
-    const analysisData = {
-      price: price.toString(),
-      volume: volume.toString(),
-      change: priceChange.toString(),
-      indicators: indicators,
-      marketTrend: trend,
-      overallSentiment: sentiment
-    };
+    try {
+      const chain = createTechnicalAnalysisChain();
+      const result = await chain.invoke({
+        price: price.toString(),
+        volume: volume.toString(),
+        change: priceChange.toString()
+      });
 
-    const chain = createTechnicalAnalysisChain();
-    const result = await chain.invoke(analysisData);
-
-    // Ensure the sentiment is never 0 in the final result
-    if (result.overallSentiment === 0) {
-      result.overallSentiment = sentiment;
+      // Merge AI results with our calculated values
+      return {
+        indicators: indicators,
+        overallSentiment: Math.max(0.01, result.overallSentiment || sentiment),
+        marketTrend: trend,
+        priceRange: {
+          low: Math.max(price * 0.95, result.priceRange?.low || 0),
+          high: Math.max(price * 1.05, result.priceRange?.high || 0),
+          confidence: Math.max(0.5, result.priceRange?.confidence || 0)
+        }
+      };
+    } catch (error) {
+      console.error('AI analysis failed, using fallback values:', error);
+      // Return fallback values using our calculations
+      return {
+        indicators: indicators,
+        overallSentiment: sentiment,
+        marketTrend: trend,
+        priceRange: {
+          low: price * 0.95,
+          high: price * 1.05,
+          confidence: 0.5
+        }
+      };
     }
-
-    return {
-      ...result,
-      marketTrend: trend,
-      indicators: indicators
-    };
   } catch (error) {
     console.error('Technical analysis chain failed:', error);
     throw error;
