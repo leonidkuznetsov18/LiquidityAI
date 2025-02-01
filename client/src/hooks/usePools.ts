@@ -5,15 +5,15 @@ import { ethers } from 'ethers';
 const INFURA_API_URL = `https://mainnet.infura.io/v3/${import.meta.env.VITE_INFURA_PROJECT_ID}`;
 const BSC_API_URL = 'https://bsc-dataseed.binance.org';
 
-// Factory addresses (checksummed)
-const UNISWAP_V3_FACTORY = ethers.getAddress('0x1F98431c8aD98523631AE4a59f267346ea31F984');
-const PANCAKESWAP_V3_FACTORY = ethers.getAddress('0x1097053Fd2ea711dad45caCcc45EfF7548fCB362');
+// Factory addresses
+const UNISWAP_V3_FACTORY = '0x1F98431c8aD98523631AE4a59f267346ea31F984';
+const PANCAKESWAP_V3_FACTORY = '0x1097053Fd2ea711dad45caCcc45EfF7548fCB362';
 
-// Token addresses (checksummed)
-const ETH_ADDRESS = ethers.getAddress('0xC02aaa39b223FE8D0A0e5C4F27eAD9083C756Cc2');
-const USDC_ADDRESS = ethers.getAddress('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606e48c');
-const BSC_WETH_ADDRESS = ethers.getAddress('0x2170Ed0880ac9A755fd29B2688956BD959F933F8');
-const BSC_USDC_ADDRESS = ethers.getAddress('0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d');
+// Token addresses
+const ETH_ADDRESS = '0xC02aaa39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606e48c';
+const BSC_WETH_ADDRESS = '0x2170Ed0880ac9A755fd29B2688956BD959F933F8';
+const BSC_USDC_ADDRESS = '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d';
 
 const FACTORY_ABI = [
   "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address)"
@@ -43,20 +43,42 @@ interface Pool {
   platform: 'uniswap' | 'pancakeswap';
 }
 
+// Helper function to safely convert addresses to checksummed format
+function safeGetAddress(address: string): string {
+  try {
+    return ethers.getAddress(address);
+  } catch (error) {
+    console.error(`Invalid address format for ${address}:`, error);
+    throw error;
+  }
+}
+
 async function fetchUniswapPools(): Promise<Pool[]> {
+  if (!import.meta.env.VITE_INFURA_PROJECT_ID) {
+    console.error('INFURA_PROJECT_ID is not set');
+    throw new Error('Missing INFURA_PROJECT_ID');
+  }
+
   try {
     const provider = new ethers.JsonRpcProvider(INFURA_API_URL);
     await provider.getNetwork(); // Verify provider connection
 
-    const factoryContract = new ethers.Contract(UNISWAP_V3_FACTORY, FACTORY_ABI, provider);
+    // Create contract instance with checksummed factory address
+    const factoryAddress = safeGetAddress(UNISWAP_V3_FACTORY);
+    const factoryContract = new ethers.Contract(factoryAddress, FACTORY_ABI, provider);
+
     const pools: Pool[] = [];
+
+    // Convert token addresses to checksummed format
+    const ethAddress = safeGetAddress(ETH_ADDRESS);
+    const usdcAddress = safeGetAddress(USDC_ADDRESS);
 
     for (const feeTier of UNISWAP_FEE_TIERS) {
       try {
-        const poolAddress = await factoryContract.getPool(ETH_ADDRESS, USDC_ADDRESS, feeTier);
+        const poolAddress = await factoryContract.getPool(ethAddress, usdcAddress, feeTier);
 
         if (poolAddress && poolAddress !== ethers.ZeroAddress) {
-          const checksummedAddress = ethers.getAddress(poolAddress);
+          const checksummedAddress = safeGetAddress(poolAddress);
           const poolContract = new ethers.Contract(checksummedAddress, POOL_ABI, provider);
 
           const [liquidity, slot0] = await Promise.all([
@@ -99,15 +121,22 @@ async function fetchPancakeswapPools(): Promise<Pool[]> {
     const provider = new ethers.JsonRpcProvider(BSC_API_URL);
     await provider.getNetwork(); // Verify provider connection
 
-    const factoryContract = new ethers.Contract(PANCAKESWAP_V3_FACTORY, FACTORY_ABI, provider);
+    // Create contract instance with checksummed factory address
+    const factoryAddress = safeGetAddress(PANCAKESWAP_V3_FACTORY);
+    const factoryContract = new ethers.Contract(factoryAddress, FACTORY_ABI, provider);
+
     const pools: Pool[] = [];
+
+    // Convert token addresses to checksummed format
+    const wethAddress = safeGetAddress(BSC_WETH_ADDRESS);
+    const usdcAddress = safeGetAddress(BSC_USDC_ADDRESS);
 
     for (const feeTier of PANCAKESWAP_FEE_TIERS) {
       try {
-        const poolAddress = await factoryContract.getPool(BSC_WETH_ADDRESS, BSC_USDC_ADDRESS, feeTier);
+        const poolAddress = await factoryContract.getPool(wethAddress, usdcAddress, feeTier);
 
         if (poolAddress && poolAddress !== ethers.ZeroAddress) {
-          const checksummedAddress = ethers.getAddress(poolAddress);
+          const checksummedAddress = safeGetAddress(poolAddress);
           const poolContract = new ethers.Contract(checksummedAddress, POOL_ABI, provider);
 
           const [liquidity, slot0] = await Promise.all([
