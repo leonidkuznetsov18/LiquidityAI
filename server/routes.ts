@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
-import { getEthereumData, getCryptoNews, generatePredictions } from './services/crypto';
+import { getEthereumData, getCryptoNews } from './services/crypto';
 import { analyzeNewsWithAI, analyzeTechnicalIndicatorsWithAI, generatePredictionsWithAI } from './services/aiAnalysis';
 
 export function registerRoutes(app: Express): Server {
@@ -77,43 +77,31 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Predictions API
+  // Predictions API - Using AI predictions only
   app.get('/api/predictions', async (_req, res) => {
     try {
-      // Try AI predictions first
-      try {
-        const ethData = await getEthereumData();
-        const technicalAnalysis = await analyzeTechnicalIndicatorsWithAI(
-          ethData.price,
-          ethData.volume_24h,
-          ethData.price_change_24h,
-          []
-        );
+      const ethData = await getEthereumData();
+      const technicalAnalysis = await analyzeTechnicalIndicatorsWithAI(
+        ethData.price,
+        ethData.volume_24h,
+        ethData.price_change_24h,
+        []
+      );
 
-        const newsData = await getCryptoNews();
-        const newsAnalysis = await analyzeNewsWithAI(newsData.news.headlines);
+      const newsData = await getCryptoNews();
+      const newsAnalysis = await analyzeNewsWithAI(newsData.news.headlines);
 
-        const predictions = await generatePredictionsWithAI(
-          ethData.price,
-          technicalAnalysis,
-          newsAnalysis
-        );
+      const predictions = await generatePredictionsWithAI(
+        ethData.price,
+        technicalAnalysis,
+        newsAnalysis
+      );
 
-        if (!predictions) {
-          throw new Error('Failed to generate AI predictions');
-        }
-
-        res.json(predictions);
-      } catch (aiError) {
-        console.error('AI predictions failed, falling back to manual predictions:', aiError);
-
-        // Fallback to manual predictions
-        const manualPredictions = await generatePredictions();
-        if (!manualPredictions) {
-          throw new Error('Failed to generate predictions');
-        }
-        res.json(manualPredictions);
+      if (!predictions) {
+        throw new Error('Failed to generate predictions');
       }
+
+      res.json(predictions);
     } catch (error) {
       console.error('Prediction error:', error);
       res.status(500).json({ 
