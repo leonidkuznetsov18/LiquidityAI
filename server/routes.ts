@@ -29,6 +29,7 @@ export function registerRoutes(app: Express): Server {
           }));
         } catch (error) {
           console.error('WebSocket data fetch error:', error);
+          ws.send(JSON.stringify({ error: 'Failed to fetch market data' }));
         }
       }
     }, 10000); // Update every 10 seconds
@@ -42,9 +43,16 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/market-data', async (_req, res) => {
     try {
       const data = await getTechnicalIndicators();
+      if (!data) {
+        throw new Error('Failed to get technical indicators');
+      }
       res.json(data);
     } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch market data' });
+      console.error('Market data error:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch market data',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 
@@ -52,10 +60,16 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/predictions', async (_req, res) => {
     try {
       const predictions = await generatePredictions();
+      if (!predictions) {
+        throw new Error('Failed to generate predictions');
+      }
       res.json(predictions);
     } catch (error) {
       console.error('Prediction error:', error);
-      res.status(500).json({ error: 'Failed to generate predictions' });
+      res.status(500).json({ 
+        error: 'Failed to generate predictions',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 
@@ -63,20 +77,17 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/sentiment', async (_req, res) => {
     try {
       const newsData = await getCryptoNews();
+      if (!newsData) {
+        throw new Error('Failed to get crypto news');
+      }
       res.json(newsData);
     } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch sentiment data' });
+      console.error('Sentiment analysis error:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch sentiment data',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
-  });
-
-  // Settings API
-  app.post('/api/settings', (_req, res) => {
-    res.json({ success: true });
-  });
-
-  // Range Update API
-  app.post('/api/range', (_req, res) => {
-    res.json({ success: true });
   });
 
   return httpServer;
