@@ -374,32 +374,44 @@ export async function generatePredictionsWithAI(
           content: `You are a crypto price prediction expert. 
 
 Price Range Prediction Rules:
-1. Technical Factors Weight (70%):
-   - Strong oversold (RSI < 30): Expect 5-10% upside
-   - Strong overbought (RSI > 70): Expect 5-10% downside
-   - Bollinger Band breakouts: 2-5% movement in breakout direction
-   - MACD crossovers: 3-7% movement in signal direction
-   - Volume confirmation: Increase confidence by 20%
+1. Technical Analysis Weight (70%):
+   - Current Price is the anchor point
+   - Maximum range deviation: ±5% from current price for high confidence
+   - Maximum range deviation: ±8% from current price for medium confidence
+   - Maximum range deviation: ±12% from current price for low confidence
 
-2. News Impact Weight (30%):
-   - Major positive news: 2-5% upside
-   - Major negative news: 2-5% downside
-   - Multiple confirming news: Double the impact
-   - Contradictory news: Reduce range confidence
+2. Signal Strength Impact:
+   - Strong buy signals: Push range up by 2-3%
+   - Strong sell signals: Push range down by 2-3%
+   - Mixed signals: Keep range tight (±3%)
 
-3. Confidence Calculation:
+3. Volume Confirmation:
+   - High volume confirms trend: Expand range by 1%
+   - Low volume suggests uncertainty: Contract range by 1%
+
+4. News Impact (30%):
+   - Major positive news: +1-2% to range
+   - Major negative news: -1-2% to range
+   - News confidence below 0.5: Reduce impact by 50%
+
+5. Confidence Calculation:
    - Technical signal agreement: 0-40%
    - Volume confirmation: 0-20%
    - News impact clarity: 0-20%
    - Market volatility adjustment: 0-20%
+
+6. Validation Rules:
+   - rangeLow must be > currentPrice * 0.88
+   - rangeHigh must be < currentPrice * 1.12
+   - rangeLow must be < rangeHigh
+   - Confidence must be between 0-100
 
 Return a JSON response with:
 {
   "rangeLow": number,
   "rangeHigh": number,
   "confidence": number (0-100),
-  "explanation": string (detailed explanation of the prediction factors and reasoning),
-  "reasoning": string
+  "explanation": string (detailed explanation of the prediction factors and reasoning)
 }`
         },
         {
@@ -412,46 +424,23 @@ Return a JSON response with:
 
     const prediction = JSON.parse(response.choices[0].message.content);
 
-    // Refine the prediction with a second pass
-    const refinementResponse = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        {
-          role: "system",
-          content: `Review and refine the initial price prediction:
-Initial Prediction:
-- Range: $${prediction.rangeLow} - $${prediction.rangeHigh}
-- Confidence: ${prediction.confidence}%
-- Explanation: ${prediction.explanation}
-
-Consider:
-1. Range Realism:
-   - Is the range too wide/narrow given market conditions?
-   - Are the levels aligned with key support/resistance?
-2. Confidence Accuracy:
-   - Are there enough confirming signals?
-   - Is the market context properly weighted?
-
-Return refined JSON prediction with improved explanation.`
-        },
-        {
-          role: "user",
-          content: JSON.stringify({ prediction, analysisData })
-        }
-      ],
-      response_format: { type: "json_object" },
-    });
-
-    const refinedPrediction = JSON.parse(refinementResponse.choices[0].message.content);
-
-    return {
-      rangeLow: Math.max(0, refinedPrediction.rangeLow || prediction.rangeLow || 0),
-      rangeHigh: Math.max(refinedPrediction.rangeLow || prediction.rangeLow || 0 + 1, 
-                       refinedPrediction.rangeHigh || prediction.rangeHigh || 0),
-      confidence: Math.max(0, Math.min(100, refinedPrediction.confidence || prediction.confidence || 50)),
+    // Validate and normalize the prediction
+    const normalizedPrediction = {
+      rangeLow: Math.max(price * 0.88, Math.min(prediction.rangeLow, price * 0.95)),
+      rangeHigh: Math.max(price * 1.05, Math.min(prediction.rangeHigh, price * 1.12)),
+      confidence: Math.max(0, Math.min(100, prediction.confidence)),
       timestamp: Date.now(),
-      explanation: refinedPrediction.explanation || prediction.explanation || "No explanation available"
+      explanation: prediction.explanation || "No explanation available"
     };
+
+    // Ensure rangeLow is less than rangeHigh
+    if (normalizedPrediction.rangeLow >= normalizedPrediction.rangeHigh) {
+      normalizedPrediction.rangeLow = price * 0.97;
+      normalizedPrediction.rangeHigh = price * 1.03;
+    }
+
+    return normalizedPrediction;
+
   } catch (error) {
     console.error('AI Prediction Generation failed:', error);
     throw error;
