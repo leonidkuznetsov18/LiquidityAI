@@ -11,7 +11,7 @@ import {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // The newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const MODEL = "gpt-4o";
+const MODEL = "gpt-3.5-turbo";
 
 // Verify OpenAI API key validity
 async function verifyApiKey(): Promise<boolean> {
@@ -352,6 +352,7 @@ export async function generatePredictionsWithAI(
   rangeHigh: number;
   confidence: number;
   timestamp: number;
+  explanation: string;
 }> {
   try {
     if (!await verifyApiKey()) {
@@ -397,6 +398,7 @@ Return a JSON response with:
   "rangeLow": number,
   "rangeHigh": number,
   "confidence": number (0-100),
+  "explanation": string (detailed explanation of the prediction factors and reasoning),
   "reasoning": string
 }`
         },
@@ -420,6 +422,7 @@ Return a JSON response with:
 Initial Prediction:
 - Range: $${prediction.rangeLow} - $${prediction.rangeHigh}
 - Confidence: ${prediction.confidence}%
+- Explanation: ${prediction.explanation}
 
 Consider:
 1. Range Realism:
@@ -429,7 +432,7 @@ Consider:
    - Are there enough confirming signals?
    - Is the market context properly weighted?
 
-Return refined JSON prediction.`
+Return refined JSON prediction with improved explanation.`
         },
         {
           role: "user",
@@ -444,9 +447,10 @@ Return refined JSON prediction.`
     return {
       rangeLow: Math.max(0, refinedPrediction.rangeLow || prediction.rangeLow || 0),
       rangeHigh: Math.max(refinedPrediction.rangeLow || prediction.rangeLow || 0 + 1, 
-                         refinedPrediction.rangeHigh || prediction.rangeHigh || 0),
+                       refinedPrediction.rangeHigh || prediction.rangeHigh || 0),
       confidence: Math.max(0, Math.min(100, refinedPrediction.confidence || prediction.confidence || 50)),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      explanation: refinedPrediction.explanation || prediction.explanation || "No explanation available"
     };
   } catch (error) {
     console.error('AI Prediction Generation failed:', error);

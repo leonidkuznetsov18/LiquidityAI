@@ -5,6 +5,7 @@ interface PredictionsData {
   rangeHigh: number;
   confidence: number;
   timestamp: number;
+  explanation: string;
 }
 
 export function usePredictions() {

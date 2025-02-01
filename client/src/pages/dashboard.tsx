@@ -9,6 +9,7 @@ import { useMarketData } from "@/hooks/useMarketData";
 import { usePredictions } from "@/hooks/usePredictions";
 import { formatDistanceToNow } from "date-fns";
 import { RefreshCw } from "lucide-react";
+import PredictionExplanationDialog from "@/components/analysis/PredictionExplanationDialog";
 
 export default function Dashboard() {
   const { data: marketData, isLoading: marketLoading } = useMarketData();
@@ -64,6 +65,13 @@ export default function Dashboard() {
                 </div>
                 <div className="text-sm text-muted-foreground">
                   Updated {formatDistanceToNow(predictions.timestamp)} ago
+                </div>
+                <div className="flex justify-end mt-2">
+                  <PredictionExplanationDialog 
+                    explanation={predictions.explanation}
+                    rangeLow={predictions.rangeLow}
+                    rangeHigh={predictions.rangeHigh}
+                  />
                 </div>
               </div>
             ) : (
