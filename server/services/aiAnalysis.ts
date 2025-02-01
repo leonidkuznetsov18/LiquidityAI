@@ -1,5 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { z } from "zod";
+import { PromptTemplate } from "@langchain/core/prompts";
 import { runNewsAnalysis, runTechnicalAnalysis } from './langGraph/analysisGraph';
 
 interface NewsItem {
@@ -34,6 +35,13 @@ interface AITechnicalAnalysis {
   };
 }
 
+const predictionSchema = z.object({
+  rangeLow: z.number().min(0),
+  rangeHigh: z.number().min(0),
+  confidence: z.number().min(0).max(100),
+  reasoning: z.string()
+});
+
 // Initialize OpenAI chat model
 const openai = new ChatOpenAI({
   modelName: "gpt-4",
@@ -47,13 +55,8 @@ async function verifyApiKey(): Promise<boolean> {
     return false;
   }
   try {
-    // Use a simple test message to verify the API key
-    const messages: BaseMessage[] = [
-      new SystemMessage("API key verification test"),
-      new HumanMessage("Test")
-    ];
-
-    await openai.invoke(messages);
+    const prompt = PromptTemplate.fromTemplate('Test message');
+    await prompt.format({});
     return true;
   } catch (error) {
     console.error('OpenAI API key verification failed:', error instanceof Error ? error.message : String(error));
@@ -71,14 +74,13 @@ export async function analyzeNewsWithAI(headlines: NewsItem[]): Promise<AINewsAn
     const result = await runNewsAnalysis(JSON.stringify(headlines));
     console.log('News analysis result:', result);
 
-    // Ensure we have a valid response structure
     return {
-      sentiment: result.sentiment || 'neutral',
-      score: Math.max(0.01, result.score || 0.5),
-      confidence: Math.max(0.01, result.confidence || 0.5),
+      sentiment: result.sentiment,
+      score: Math.max(0.01, result.score),
+      confidence: Math.max(0.01, result.confidence),
       impact: {
-        shortTerm: Math.max(0.01, result.impact?.shortTerm || 0.5),
-        longTerm: Math.max(0.01, result.impact?.longTerm || 0.5)
+        shortTerm: Math.max(0.01, result.impact.shortTerm),
+        longTerm: Math.max(0.01, result.impact.longTerm)
       }
     };
   } catch (error) {
@@ -102,20 +104,10 @@ export async function analyzeTechnicalIndicatorsWithAI(
     const result = await runTechnicalAnalysis(currentPrice, volume24h, priceChange24h);
     console.log('Technical analysis result:', result);
 
-    // Ensure we have valid indicators and non-zero sentiment
     return {
-      indicators: result.indicators.map(indicator => ({
-        ...indicator,
-        value: Number(indicator.value || 0),
-        confidence: Math.max(0.01, Math.min(1, indicator.confidence || 0.5)),
-        signal: indicator.signal?.toLowerCase() || 'neutral'
-      })),
-      overallSentiment: result.overallSentiment === 0 ? 0.01 : (result.overallSentiment || 0.01),
-      priceRange: {
-        low: Math.max(0, result.priceRange?.low || currentPrice * 0.95),
-        high: Math.max(result.priceRange?.low || currentPrice, result.priceRange?.high || currentPrice * 1.05),
-        confidence: Math.max(0.01, Math.min(1, result.priceRange?.confidence || 0.5))
-      }
+      indicators: result.indicators,
+      overallSentiment: result.overallSentiment,
+      priceRange: result.priceRange
     };
   } catch (error) {
     console.error('AI Technical Analysis failed:', error);
@@ -138,36 +130,41 @@ export async function generatePredictionsWithAI(
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    const analysisData = {
-      currentPrice: price,
-      technicalAnalysis,
-      newsAnalysis,
-      timestamp: Date.now()
-    };
-
-    const messages: BaseMessage[] = [
-      new SystemMessage(
-        `You are a crypto price prediction expert. Using the provided technical and news analysis, generate a price range prediction that considers both technical factors and market sentiment. Focus on realistic ranges based on current volatility and market conditions.
-
-Return strict JSON in this format:
+    const template = `
+You are a crypto price prediction expert. Analyze the provided technical and news data to generate a price range prediction.
+Return ONLY valid JSON in this format:
 {
   "rangeLow": number,
   "rangeHigh": number,
   "confidence": number between 0-100,
   "reasoning": string
-}`
-      ),
-      new HumanMessage(JSON.stringify(analysisData))
-    ];
+}
 
-    const response = await openai.invoke(messages);
-    const result = JSON.parse(response.content);
-    console.log('Prediction result:', result);
+Analysis data: {analysisData}`;
+
+    const prompt = PromptTemplate.fromTemplate(template);
+    const formattedPrompt = await prompt.format({
+      analysisData: JSON.stringify({
+        currentPrice: price,
+        technicalAnalysis,
+        newsAnalysis,
+        timestamp: Date.now()
+      })
+    });
+
+    const completion = await openai.invoke([formattedPrompt]);
+    const responseText = completion.content;
+
+    if (typeof responseText !== 'string') {
+      throw new Error('Invalid response format from OpenAI');
+    }
+
+    const result = predictionSchema.parse(JSON.parse(responseText));
 
     return {
-      rangeLow: Math.max(0, result.rangeLow || price * 0.95),
-      rangeHigh: Math.max(result.rangeLow || price, result.rangeHigh || price * 1.05),
-      confidence: Math.max(1, Math.min(100, result.confidence || 50)),
+      rangeLow: Math.max(0, result.rangeLow),
+      rangeHigh: Math.max(result.rangeLow, result.rangeHigh),
+      confidence: Math.max(1, Math.min(100, result.confidence)),
       timestamp: Date.now()
     };
   } catch (error) {

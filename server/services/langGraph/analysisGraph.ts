@@ -2,11 +2,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { z } from "zod";
 import { JsonOutputParser } from "@langchain/core/output_parsers";
-import { 
-  ChatPromptTemplate, 
-  SystemMessagePromptTemplate,
-  HumanMessagePromptTemplate 
-} from "@langchain/core/prompts";
+import { PromptTemplate } from "@langchain/core/prompts";
+
 import { getDefaultIndicators, calculateOverallSentiment, getMarketTrend } from '../utils/calculations';
 
 // Initialize OpenAI chat model
@@ -43,8 +40,11 @@ const technicalAnalysisSchema = z.object({
   })
 });
 
-const systemPromptNews = `You are a crypto market expert specializing in news analysis. 
-Return ONLY valid JSON without any additional text or apologies. Follow this exact format:
+// Create prompt templates
+const newsAnalysisTemplate = `
+You are a crypto market expert specializing in news analysis.
+Return ONLY valid JSON without any additional text.
+
 {
   "sentiment": "positive" | "negative" | "neutral",
   "score": number from 0 to 1,
@@ -56,13 +56,12 @@ Return ONLY valid JSON without any additional text or apologies. Follow this exa
   "reasoning": "string"
 }
 
-Classification Rules:
-- POSITIVE: partnerships, launches, upgrades, growth
-- NEGATIVE: hacks, bans, crashes, technical issues
-- NEUTRAL: updates, research, regular market movement`;
+Headlines to analyze: {headlines}`;
 
-const systemPromptTechnical = `You are an expert crypto technical analyst.
-Return ONLY valid JSON without any additional text or apologies. Follow this exact format:
+const technicalAnalysisTemplate = `
+You are an expert crypto technical analyst.
+Return ONLY valid JSON without any additional text.
+
 {
   "indicators": [
     {
@@ -73,53 +72,51 @@ Return ONLY valid JSON without any additional text or apologies. Follow this exa
       "description": "string"
     }
   ],
-  "overallSentiment": number from -1 to 1 (never return 0),
+  "overallSentiment": number from -1 to 1,
   "priceRange": {
     "low": number greater than 0,
     "high": number greater than low,
     "confidence": number from 0 to 1
   }
-}`;
+}
 
-// Create prompt templates
-const newsAnalysisPrompt = ChatPromptTemplate.fromMessages([
-  SystemMessagePromptTemplate.fromTemplate(systemPromptNews),
-  HumanMessagePromptTemplate.fromTemplate("Headlines to analyze: {headlines}")
-]);
+Market data: Price={price}, Volume={volume}, Change={change}`;
 
-const technicalAnalysisPrompt = ChatPromptTemplate.fromMessages([
-  SystemMessagePromptTemplate.fromTemplate(systemPromptTechnical),
-  HumanMessagePromptTemplate.fromTemplate("Market data: Price={price}, Volume={volume}, Change={change}")
-]);
-
-// Create chains with proper response format
+// Create typed chains
 const createNewsAnalysisChain = () => {
+  const prompt = PromptTemplate.fromTemplate(newsAnalysisTemplate);
   return RunnableSequence.from([
-    newsAnalysisPrompt,
-    model.bind({ response_format: { type: "json_object" } }),
-    new JsonOutputParser()
-  ]);
+    {
+      prompt: prompt,
+      model: model,
+      outputParser: new JsonOutputParser(),
+    }
+  ]).pipe(newsAnalysisSchema);
 };
 
 const createTechnicalAnalysisChain = () => {
+  const prompt = PromptTemplate.fromTemplate(technicalAnalysisTemplate);
   return RunnableSequence.from([
-    technicalAnalysisPrompt,
-    model.bind({ response_format: { type: "json_object" } }),
-    new JsonOutputParser()
-  ]);
+    {
+      prompt: prompt,
+      model: model,
+      outputParser: new JsonOutputParser(),
+    }
+  ]).pipe(technicalAnalysisSchema);
 };
 
-// Export functions with fallback handling
-export async function runNewsAnalysis(headlines: string): Promise<any> {
+// Export functions with proper typing and error handling
+export async function runNewsAnalysis(headlines: string): Promise<z.infer<typeof newsAnalysisSchema>> {
   try {
     const chain = createNewsAnalysisChain();
     const result = await chain.invoke({
-      headlines: headlines.replace(/[\[\]{}]/g, '') // Remove brackets and braces
+      headlines: headlines.replace(/[\[\]{}]/g, '')
     });
-    return result;
+
+    return newsAnalysisSchema.parse(result);
   } catch (error) {
     console.error('News analysis chain failed:', error);
-    // Return fallback values on error
+    // Return fallback values that match the schema
     return {
       sentiment: "neutral",
       score: 0.5,
@@ -133,17 +130,21 @@ export async function runNewsAnalysis(headlines: string): Promise<any> {
   }
 }
 
-export async function runTechnicalAnalysis(price: number, volume: number, priceChange: number): Promise<any> {
+export async function runTechnicalAnalysis(
+  price: number,
+  volume: number,
+  priceChange: number
+): Promise<z.infer<typeof technicalAnalysisSchema>> {
   try {
-    // Get technical indicators from our calculations
+    // Get technical indicators from calculations
     const indicators = getDefaultIndicators(price, volume);
     const sentiment = calculateOverallSentiment(price, volume);
-
-    // Get market trend
-    const ema = indicators.find(i => i.name === 'EMA (14)')?.value || 0;
-    const rsi = indicators.find(i => i.name === 'RSI')?.value || 0;
-    const macd = indicators.find(i => i.name === 'MACD')?.value || 0;
-    const trend = getMarketTrend(price, ema, rsi, macd);
+    const trend = getMarketTrend(
+      price,
+      indicators.find(i => i.name === 'EMA (14)')?.value || 0,
+      indicators.find(i => i.name === 'RSI')?.value || 0,
+      indicators.find(i => i.name === 'MACD')?.value || 0
+    );
 
     try {
       const chain = createTechnicalAnalysisChain();
@@ -153,24 +154,35 @@ export async function runTechnicalAnalysis(price: number, volume: number, priceC
         change: priceChange.toString()
       });
 
-      // Merge AI results with our calculated values
+      const parsedResult = technicalAnalysisSchema.parse(result);
+
+      // Merge AI results with calculated values
       return {
-        indicators: indicators,
-        overallSentiment: Math.max(0.01, result.overallSentiment || sentiment),
-        marketTrend: trend,
+        indicators: indicators.map(i => ({
+          name: i.name,
+          value: i.value,
+          signal: i.signal || 'neutral',
+          confidence: Math.max(0.01, parsedResult.indicators.find(ai => ai.name === i.name)?.confidence || 0.5),
+          description: parsedResult.indicators.find(ai => ai.name === i.name)?.description || ''
+        })),
+        overallSentiment: Math.max(0.01, parsedResult.overallSentiment),
         priceRange: {
-          low: Math.max(price * 0.95, result.priceRange?.low || 0),
-          high: Math.max(price * 1.05, result.priceRange?.high || 0),
-          confidence: Math.max(0.5, result.priceRange?.confidence || 0)
+          low: Math.max(price * 0.95, parsedResult.priceRange.low),
+          high: Math.max(price * 1.05, parsedResult.priceRange.high),
+          confidence: Math.max(0.5, parsedResult.priceRange.confidence)
         }
       };
     } catch (error) {
       console.error('AI analysis failed, using fallback values:', error);
-      // Return fallback values using our calculations
       return {
-        indicators: indicators,
+        indicators: indicators.map(i => ({
+          name: i.name,
+          value: i.value,
+          signal: 'neutral',
+          confidence: 0.5,
+          description: ''
+        })),
         overallSentiment: sentiment,
-        marketTrend: trend,
         priceRange: {
           low: price * 0.95,
           high: price * 1.05,
