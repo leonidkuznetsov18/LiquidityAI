@@ -5,6 +5,7 @@ import { JsonOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
 
 import { getDefaultIndicators, calculateOverallSentiment, getMarketTrend } from '../utils/calculations';
+import type { TechnicalIndicator } from '../utils/calculations';
 
 // Initialize OpenAI chat model
 const model = new ChatOpenAI({
@@ -43,27 +44,36 @@ const technicalAnalysisSchema = z.object({
 // Create prompt templates with escaped format
 const newsPrompt = `You are a crypto market expert specializing in news analysis.
 Analyze the following headlines and return a JSON object with exactly this structure:
-sentiment: "positive" OR "negative" OR "neutral"
-score: number between 0 and 1
-confidence: number between 0 and 1
-impact: object with shortTerm and longTerm numbers between 0 and 1
-reasoning: explanation string
+{
+  "sentiment": "positive" OR "negative" OR "neutral",
+  "score": number between 0 and 1,
+  "confidence": number between 0 and 1,
+  "impact": {
+    "shortTerm": number between 0 and 1,
+    "longTerm": number between 0 and 1
+  },
+  "reasoning": explanation string
+}
 
 Headlines: {headlines}`;
 
 const technicalPrompt = `You are an expert crypto technical analyst.
 Analyze the market data and return a JSON object with exactly this structure:
-indicators: array of objects with
-  name: string
-  value: number
-  signal: "buy" OR "sell" OR "neutral"
-  confidence: number between 0 and 1
-  description: string
-overallSentiment: number between -1 and 1
-priceRange: object with
-  low: number greater than 0
-  high: number greater than low
-  confidence: number between 0 and 1
+{
+  "indicators": [{
+    "name": string,
+    "value": number,
+    "signal": "buy" OR "sell" OR "neutral",
+    "confidence": number between 0 and 1,
+    "description": string
+  }],
+  "overallSentiment": number between -1 and 1,
+  "priceRange": {
+    "low": number greater than 0,
+    "high": number greater than low,
+    "confidence": number between 0 and 1
+  }
+}
 
 Market data:
 Price: {price}
@@ -112,7 +122,7 @@ export async function runTechnicalAnalysis(
 ): Promise<z.infer<typeof technicalAnalysisSchema>> {
   try {
     const indicators = getDefaultIndicators(price, volume);
-    const sentiment = calculateOverallSentiment(price, volume);
+    const sentiment = calculateOverallSentiment(indicators);
     const trend = getMarketTrend(
       price,
       indicators.find(i => i.name === 'EMA (14)')?.value || 0,
