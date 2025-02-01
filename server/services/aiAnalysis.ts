@@ -1,37 +1,17 @@
 import OpenAI from "openai";
-import type { NewsItem } from './crypto';
+import { 
+  NewsItem, 
+  AINewsAnalysis, 
+  AITechnicalAnalysis,
+  TECHNICAL_INDICATORS,
+  TECHNICAL_ANALYSIS
+} from './types/utils';
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // The newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const MODEL = "gpt-4o";
-
-interface AINewsAnalysis {
-  sentiment: 'positive' | 'negative' | 'neutral';
-  score: number;
-  confidence: number;
-  impact: {
-    shortTerm: number;  // 0-1 scale
-    longTerm: number;   // 0-1 scale
-  };
-}
-
-interface AITechnicalAnalysis {
-  indicators: {
-    name: string;
-    value: number;
-    signal: 'buy' | 'sell' | 'neutral';
-    confidence: number;
-    reasoning: string;
-  }[];
-  overallSentiment: number;  // -1 to 1 scale
-  priceRange: {
-    low: number;
-    high: number;
-    confidence: number;
-  };
-}
 
 // Verify OpenAI API key validity
 async function verifyApiKey(): Promise<boolean> {
@@ -63,7 +43,17 @@ export async function analyzeNewsWithAI(headlines: NewsItem[]): Promise<AINewsAn
       messages: [
         {
           role: "system",
-          content: "You are a crypto market expert specializing in news analysis. Analyze the provided headlines and return a structured analysis with sentiment, confidence, and impact scores."
+          content: `You are a crypto market expert specializing in news analysis. Analyze the provided headlines and return a structured analysis with sentiment, confidence, and impact scores.
+          Return the result as a JSON object with this structure:
+          {
+            "sentiment": "positive" | "negative" | "neutral",
+            "score": number (0-1),
+            "confidence": number (0-1),
+            "impact": {
+              "shortTerm": number (0-1),
+              "longTerm": number (0-1)
+            }
+          }`
         },
         {
           role: "user",
@@ -100,11 +90,19 @@ export async function analyzeTechnicalIndicatorsWithAI(
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    const marketData = {
+    const technicalData = {
       currentPrice,
       volume24h,
       priceChange24h,
-      existingIndicators
+      indicators: existingIndicators,
+      technicalLevels: {
+        rsi: {
+          overbought: TECHNICAL_ANALYSIS.RSI.OVERBOUGHT,
+          oversold: TECHNICAL_ANALYSIS.RSI.OVERSOLD
+        },
+        fibonacci: TECHNICAL_ANALYSIS.FIBONACCI_LEVELS,
+        volumeZones: TECHNICAL_ANALYSIS.VOLUME_PROFILE_ZONES
+      }
     };
 
     const response = await openai.chat.completions.create({
@@ -112,13 +110,31 @@ export async function analyzeTechnicalIndicatorsWithAI(
       messages: [
         {
           role: "system",
-          content: `You are a crypto trading expert. Analyze the provided market data and technical indicators. 
-                   Return a detailed analysis with indicator interpretations, signals, and price range predictions. 
-                   Consider market conditions, volume profiles, and trend strength.`
+          content: `You are an expert crypto technical analyst. Analyze the market data using advanced indicators including:
+          ${Object.values(TECHNICAL_INDICATORS).map(indicator => 
+            `- ${indicator.name}: ${indicator.description}`
+          ).join('\n')}
+
+          Return a detailed JSON analysis with:
+          {
+            "indicators": [{
+              "name": string,
+              "value": number,
+              "signal": "buy" | "sell" | "neutral",
+              "confidence": number (0-1),
+              "description": string
+            }],
+            "overallSentiment": number (-1 to 1),
+            "priceRange": {
+              "low": number,
+              "high": number,
+              "confidence": number (0-1)
+            }
+          }`
         },
         {
           role: "user",
-          content: JSON.stringify(marketData)
+          content: JSON.stringify(technicalData)
         }
       ],
       response_format: { type: "json_object" },
@@ -126,7 +142,6 @@ export async function analyzeTechnicalIndicatorsWithAI(
 
     const analysis = JSON.parse(response.choices[0].message.content || '{}');
 
-    // Post-process and validate the AI output
     const normalizedIndicators = analysis.indicators?.map((indicator: any) => ({
       ...indicator,
       value: Number(indicator.value) || 0,
@@ -176,9 +191,17 @@ export async function generatePredictionsWithAI(
       messages: [
         {
           role: "system",
-          content: `You are a crypto price prediction expert. Analyze the provided technical and news data 
-                   to generate an optimal price range prediction. Consider both technical and sentiment factors 
-                   to determine the range and confidence level.`
+          content: `You are a crypto price prediction expert. 
+          Analyze the provided technical indicators, market data, and news sentiment to generate an optimal price range prediction.
+          Consider both technical factors (RSI, BB, Fibonacci levels, volume profile) and sentiment analysis.
+
+          Return a JSON response with:
+          {
+            "rangeLow": number,
+            "rangeHigh": number,
+            "confidence": number (0-1),
+            "reasoning": string
+          }`
         },
         {
           role: "user",

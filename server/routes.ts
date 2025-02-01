@@ -3,13 +3,13 @@ import { createServer, type Server } from "http";
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
 import { getEthereumData, getTechnicalIndicators, getCryptoNews, generatePredictions } from './services/crypto';
+import { analyzeNewsWithAI, analyzeTechnicalIndicatorsWithAI, generatePredictionsWithAI } from './services/aiAnalysis';
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ 
     server: httpServer,
     verifyClient: ({ req }: { req: IncomingMessage }) => {
-      // Ignore Vite HMR connections
       return !req.headers['sec-websocket-protocol']?.includes('vite-hmr');
     }
   });
@@ -32,21 +32,42 @@ export function registerRoutes(app: Express): Server {
           ws.send(JSON.stringify({ error: 'Failed to fetch market data' }));
         }
       }
-    }, 10000); // Update every 10 seconds
+    }, 10000);
 
     ws.on('close', () => {
       clearInterval(interval);
     });
   });
 
-  // Market Data API
+  // Technical Analysis API
   app.get('/api/market-data', async (_req, res) => {
     try {
-      const data = await getTechnicalIndicators();
-      if (!data) {
-        throw new Error('Failed to get technical indicators');
+      const ethData = await getEthereumData();
+      const aiAnalysis = await analyzeTechnicalIndicatorsWithAI(
+        ethData.price,
+        ethData.volume_24h,
+        ethData.price_change_24h,
+        []
+      );
+
+      if (!aiAnalysis) {
+        throw new Error('Failed to generate AI technical analysis');
       }
-      res.json(data);
+
+      res.json({
+        price24h: {
+          current: ethData.price,
+          change: ethData.price_change_24h,
+          changePercentage: (ethData.price_change_24h / ethData.price) * 100,
+        },
+        volume24h: {
+          total: ethData.volume_24h,
+          buy: ethData.volume_24h * (ethData.price_change_24h > 0 ? 0.6 : 0.4),
+          sell: ethData.volume_24h * (ethData.price_change_24h > 0 ? 0.4 : 0.6),
+        },
+        indicators: aiAnalysis.indicators,
+        sentiment: aiAnalysis.overallSentiment,
+      });
     } catch (error) {
       console.error('Market data error:', error);
       res.status(500).json({ 
@@ -56,7 +77,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // AI Predictions API
+  // Predictions API
   app.get('/api/predictions', async (_req, res) => {
     try {
       const predictions = await generatePredictions();
@@ -77,10 +98,20 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/sentiment', async (_req, res) => {
     try {
       const newsData = await getCryptoNews();
-      if (!newsData) {
-        throw new Error('Failed to get crypto news');
+      const aiSentiment = await analyzeNewsWithAI(newsData.news.headlines);
+
+      if (!aiSentiment) {
+        throw new Error('Failed to analyze sentiment');
       }
-      res.json(newsData);
+
+      res.json({
+        news: {
+          headlines: newsData.news.headlines,
+          score: aiSentiment.score,
+          sentiment: aiSentiment.sentiment,
+          impact: aiSentiment.impact
+        }
+      });
     } catch (error) {
       console.error('Sentiment analysis error:', error);
       res.status(500).json({ 
