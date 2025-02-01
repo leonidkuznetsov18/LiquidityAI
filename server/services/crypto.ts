@@ -1,7 +1,7 @@
 import axios from 'axios';
 import NodeCache from 'node-cache';
 import { getDefaultIndicators } from './utils/calculations';
-import { type NewsItem, type NewsData } from './types/utils';
+import { type NewsItem, type NewsData } from './utils/utils';
 
 const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
@@ -153,4 +153,46 @@ function calculateOverallSentiment(headlines: NewsItem[]): number {
   const sum = sentimentValues.reduce((acc, val) => acc + val, 0);
   // Normalize to 0-1 range
   return (sum / headlines.length + 1) / 2;
+}
+
+export async function generatePredictions() {
+  const data = await getEthereumData();
+
+  // Calculate indicators using manual methods
+  const { indicators } = await getTechnicalIndicators();
+
+  // Find specific indicator values
+  const ema = indicators.find(i => i.name === 'EMA (14)')?.value || data.price * 0.95;
+  const bb = indicators.find(i => i.name === 'Bollinger Bands')?.value || data.price * 1.02;
+  const rsi = indicators.find(i => i.name === 'RSI')?.value || 50;
+  const macd = indicators.find(i => i.name === 'MACD')?.value || data.price * 0.02;
+  const atr = indicators.find(i => i.name === 'ATR')?.value || data.price * 0.03;
+
+  const volatility = atr / data.price;
+  const sentiment = rsi > 70 ? -1 : rsi < 30 ? 1 : 0;
+
+  // Calculate range based on volatility and sentiment
+  const rangeLow = data.price * (1 - (volatility * (1 + sentiment * 0.5)));
+  const rangeHigh = data.price * (1 + (volatility * (1 - sentiment * 0.5)));
+
+  // Calculate confidence score based on multiple factors
+  let confidenceScore = 75; // Base confidence
+
+  // Adjust confidence based on technical signals
+  if (data.price < ema && rangeLow < data.price) confidenceScore += 5;
+  if (data.price > ema && rangeHigh > data.price) confidenceScore += 5;
+  if (macd > 0 && sentiment > 0) confidenceScore += 5;
+  if (macd < 0 && sentiment < 0) confidenceScore += 5;
+  if (rsi > 50 && sentiment > 0) confidenceScore += 5;
+  if (rsi < 50 && sentiment < 0) confidenceScore += 5;
+
+  // Ensure confidence stays within reasonable bounds
+  confidenceScore = Math.min(95, Math.max(60, confidenceScore));
+
+  return {
+    rangeLow,
+    rangeHigh,
+    confidence: confidenceScore,
+    timestamp: Date.now(),
+  };
 }

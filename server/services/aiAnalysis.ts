@@ -5,7 +5,7 @@ import {
   AITechnicalAnalysis,
   TECHNICAL_INDICATORS,
   TECHNICAL_ANALYSIS
-} from './utils';
+} from './utils/utils';
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
