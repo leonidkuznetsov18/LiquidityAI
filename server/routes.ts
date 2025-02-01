@@ -32,7 +32,7 @@ export function registerRoutes(app: Express): Server {
           ws.send(JSON.stringify({ error: 'Failed to fetch market data' }));
         }
       }
-    }, 10000);
+    }, 1000000);
 
     ws.on('close', () => {
       clearInterval(interval);

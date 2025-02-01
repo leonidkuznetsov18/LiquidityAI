@@ -11,6 +11,6 @@ interface PredictionsData {
 export function usePredictions() {
   return useQuery<PredictionsData>({
     queryKey: ['/api/predictions'],
-    refetchInterval: 60000, // Refetch every minute
+    enabled: false, // Don't fetch automatically on mount
   });
 }

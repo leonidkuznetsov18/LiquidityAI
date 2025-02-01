@@ -12,7 +12,7 @@ import { RefreshCw } from "lucide-react";
 import PredictionExplanationDialog from "@/components/analysis/PredictionExplanationDialog";
 
 export default function Dashboard() {
-  const { data: marketData, isLoading: marketLoading } = useMarketData();
+  const { data: marketData, isLoading: marketLoading, refetch: refetchMarket } = useMarketData();
   const {
     data: predictions,
     refetch: refetchPredictions,
@@ -20,8 +20,9 @@ export default function Dashboard() {
     isLoading: predictionLoading,
   } = usePredictions();
 
-  const handleRefresh = () => {
-    refetchPredictions();
+  const handleRefresh = async () => {
+    await refetchMarket(); // First update market data
+    await refetchPredictions(); // Then update predictions
   };
 
   return (

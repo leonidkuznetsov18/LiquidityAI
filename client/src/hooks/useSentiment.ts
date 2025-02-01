@@ -16,6 +16,5 @@ interface SentimentData {
 export function useSentiment() {
   return useQuery<SentimentData>({
     queryKey: ['/api/sentiment'],
-    refetchInterval: 3600000, // Refetch every hour (3600000 ms)
   });
 }
