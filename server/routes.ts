@@ -50,7 +50,7 @@ export function registerRoutes(app: Express): Server {
         []
       );
 
-      if (!aiAnalysis || !aiAnalysis.indicators) {
+      if (!aiAnalysis) {
         throw new Error('Failed to generate AI technical analysis');
       }
 
@@ -66,19 +66,18 @@ export function registerRoutes(app: Express): Server {
           sell: ethData.volume_24h * (ethData.price_change_24h > 0 ? 0.4 : 0.6),
         },
         indicators: aiAnalysis.indicators,
-        sentiment: aiAnalysis.overallSentiment || 0.01,
-        trend: aiAnalysis.trend || 'neutral',
+        sentiment: aiAnalysis.overallSentiment,
       });
     } catch (error) {
       console.error('Market data error:', error);
       res.status(500).json({ 
         error: 'Failed to fetch market data',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   });
 
-  // Predictions API
+  // Predictions API - Using AI predictions only
   app.get('/api/predictions', async (_req, res) => {
     try {
       const ethData = await getEthereumData();
@@ -89,16 +88,8 @@ export function registerRoutes(app: Express): Server {
         []
       );
 
-      if (!technicalAnalysis) {
-        throw new Error('Failed to generate technical analysis');
-      }
-
       const newsData = await getCryptoNews();
       const newsAnalysis = await analyzeNewsWithAI(newsData.news.headlines);
-
-      if (!newsAnalysis || !newsAnalysis.impact) {
-        throw new Error('Failed to analyze news data');
-      }
 
       const predictions = await generatePredictionsWithAI(
         ethData.price,
@@ -110,26 +101,12 @@ export function registerRoutes(app: Express): Server {
         throw new Error('Failed to generate predictions');
       }
 
-      const response = {
-        ...predictions,
-        technicalAnalysis: {
-          sentiment: technicalAnalysis.overallSentiment || 0.01,
-          marketTrend: technicalAnalysis.trend || 'neutral',
-          confidence: technicalAnalysis.priceRange?.confidence || 0.5
-        },
-        newsImpact: {
-          sentiment: newsAnalysis.sentiment || 'neutral',
-          shortTerm: newsAnalysis.impact?.shortTerm || 0.5,
-          longTerm: newsAnalysis.impact?.longTerm || 0.5
-        }
-      };
-
-      res.json(response);
+      res.json(predictions);
     } catch (error) {
       console.error('Prediction error:', error);
       res.status(500).json({ 
         error: 'Failed to generate predictions',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   });
@@ -140,26 +117,23 @@ export function registerRoutes(app: Express): Server {
       const newsData = await getCryptoNews();
       const aiSentiment = await analyzeNewsWithAI(newsData.news.headlines);
 
-      if (!aiSentiment || !aiSentiment.impact) {
+      if (!aiSentiment) {
         throw new Error('Failed to analyze sentiment');
       }
 
       res.json({
         news: {
           headlines: newsData.news.headlines,
-          score: aiSentiment.score || 0.5,
-          sentiment: aiSentiment.sentiment || 'neutral',
-          impact: {
-            shortTerm: aiSentiment.impact.shortTerm || 0.5,
-            longTerm: aiSentiment.impact.longTerm || 0.5
-          }
+          score: aiSentiment.score,
+          sentiment: aiSentiment.sentiment,
+          impact: aiSentiment.impact
         }
       });
     } catch (error) {
       console.error('Sentiment analysis error:', error);
       res.status(500).json({ 
         error: 'Failed to fetch sentiment data',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   });

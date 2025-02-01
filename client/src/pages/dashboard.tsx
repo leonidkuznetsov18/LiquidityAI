@@ -12,7 +12,12 @@ import { RefreshCw } from "lucide-react";
 
 export default function Dashboard() {
   const { data: marketData, isLoading: marketLoading } = useMarketData();
-  const { data: predictions, refetch: refetchPredictions, isRefetching } = usePredictions();
+  const {
+    data: predictions,
+    refetch: refetchPredictions,
+    isRefetching,
+    isLoading: predictionLoading,
+  } = usePredictions();
 
   const handleRefresh = () => {
     refetchPredictions();
@@ -32,8 +37,8 @@ export default function Dashboard() {
           <Card className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">AI Predictions</h2>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="icon"
                 onClick={handleRefresh}
                 disabled={isRefetching}
@@ -75,7 +80,7 @@ export default function Dashboard() {
           </Card>
 
           <Card className="p-4">
-            <RangeAdjuster predictions={predictions} />
+            <RangeAdjuster predictions={predictions} isLoading={predictionLoading} />
           </Card>
         </div>
       </main>

@@ -9,6 +9,7 @@ interface Props {
     rangeHigh: number;
     confidence: number;
   };
+  isLoading?: boolean;
 }
 
 export default function RangeAdjuster({ predictions }: Props) {

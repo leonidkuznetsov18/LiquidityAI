@@ -1,63 +1,17 @@
-import { ChatOpenAI } from "@langchain/openai";
-import { z } from "zod";
-import { PromptTemplate } from "@langchain/core/prompts";
-import { JsonOutputParser } from "@langchain/core/output_parsers";
-import { RunnableSequence } from "@langchain/core/runnables";
-import { runNewsAnalysis, runTechnicalAnalysis } from './langGraph/analysisGraph';
-import { calculateOverallSentiment, getDefaultIndicators, getMarketTrend } from './utils/calculations';
+import OpenAI from "openai";
+import { 
+  NewsItem, 
+  AINewsAnalysis, 
+  AITechnicalAnalysis,
+  TECHNICAL_INDICATORS,
+  TECHNICAL_ANALYSIS
+} from './utils/utils';
 
-interface NewsItem {
-  title: string;
-  url: string;
-  sentiment: 'positive' | 'negative' | 'neutral';
-}
+// Initialize OpenAI client
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-interface AINewsAnalysis {
-  sentiment: 'positive' | 'negative' | 'neutral';
-  score: number;
-  confidence: number;
-  impact: {
-    shortTerm: number;
-    longTerm: number;
-  };
-}
-
-interface TechnicalIndicator {
-  name: string;
-  value: number;
-  signal: 'buy' | 'sell' | 'neutral';
-  confidence: number;
-}
-
-interface AITechnicalAnalysis {
-  indicators: Array<{
-    name: string;
-    value: number;
-    signal: string;
-    confidence: number;
-    description: string;
-  }>;
-  overallSentiment: number;
-  priceRange: {
-    low: number;
-    high: number;
-    confidence: number;
-  };
-  trend: string;
-}
-
-const predictionSchema = z.object({
-  rangeLow: z.number().min(0),
-  rangeHigh: z.number().min(0),
-  confidence: z.number().min(0).max(100),
-  reasoning: z.string()
-});
-
-// Initialize OpenAI chat model
-const openai = new ChatOpenAI({
-  modelName: "gpt-4",
-  temperature: 0.7,
-});
+// The newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+const MODEL = "gpt-4o";
 
 // Verify OpenAI API key validity
 async function verifyApiKey(): Promise<boolean> {
@@ -66,12 +20,67 @@ async function verifyApiKey(): Promise<boolean> {
     return false;
   }
   try {
-    const prompt = PromptTemplate.fromTemplate("Test prompt");
-    await prompt.format({});
+    await openai.chat.completions.create({
+      model: MODEL,
+      messages: [{ role: "system", content: "API key verification test" }],
+      max_tokens: 5
+    });
     return true;
   } catch (error) {
     console.error('OpenAI API key verification failed:', error instanceof Error ? error.message : String(error));
     return false;
+  }
+}
+
+async function refineNewsAnalysis(
+  analysis: AINewsAnalysis,
+  headlines: NewsItem[]
+): Promise<AINewsAnalysis> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content: `You are a crypto news analysis expert. Review and refine the previous sentiment analysis for these headlines.
+          Consider:
+          1. Market Impact:
+             - Major partnerships/adoption: Very Positive
+             - Technical achievements: Positive
+             - Minor issues: Slightly Negative
+             - Security breaches: Very Negative
+          2. Source Credibility
+          3. Time Relevance
+          4. Market Context
+
+          Current analysis:
+          - Sentiment: ${analysis.sentiment}
+          - Score: ${analysis.score}
+          - Confidence: ${analysis.confidence}
+
+          Return refined JSON analysis with detailed reasoning.`
+        },
+        {
+          role: "user",
+          content: JSON.stringify(headlines)
+        }
+      ],
+      response_format: { type: "json_object" },
+    });
+
+    const refinedAnalysis = JSON.parse(response.choices[0].message.content);
+    return {
+      sentiment: refinedAnalysis.sentiment || analysis.sentiment,
+      score: Math.max(0, Math.min(1, refinedAnalysis.score || analysis.score)),
+      confidence: Math.max(0, Math.min(1, refinedAnalysis.confidence || analysis.confidence)),
+      impact: {
+        shortTerm: Math.max(0, Math.min(1, refinedAnalysis.impact?.shortTerm || analysis.impact.shortTerm)),
+        longTerm: Math.max(0, Math.min(1, refinedAnalysis.impact?.longTerm || analysis.impact.longTerm))
+      }
+    };
+  } catch (error) {
+    console.error('News analysis refinement failed:', error);
+    return analysis;
   }
 }
 
@@ -81,22 +90,141 @@ export async function analyzeNewsWithAI(headlines: NewsItem[]): Promise<AINewsAn
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    console.log('Analyzing headlines:', headlines);
-    const result = await runNewsAnalysis(JSON.stringify(headlines));
-    console.log('News analysis result:', result);
+    const response = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content: `You are a crypto market expert specializing in news analysis. Analyze the provided headlines for market impact.
 
-    return {
-      sentiment: result.sentiment,
-      score: Math.max(0.01, result.score),
-      confidence: Math.max(0.01, result.confidence),
+Sentiment Classification Rules:
+POSITIVE indicators:
+- Adoption/Integration: 'partnership', 'integration', 'launch', 'adoption'
+- Development: 'upgrade', 'improvement', 'milestone', 'achievement'
+- Market Growth: 'surge', 'rally', 'breakthrough', 'record'
+- Institutional Interest: 'investment', 'institutional', 'fund', 'acquisition'
+
+NEGATIVE indicators:
+- Security Issues: 'hack', 'breach', 'vulnerability', 'exploit'
+- Regulatory: 'ban', 'restriction', 'crackdown', 'regulation'
+- Market Decline: 'crash', 'decline', 'dump', 'selloff'
+- Technical Problems: 'bug', 'issue', 'delay', 'failure'
+
+NEUTRAL indicators:
+- Updates: 'maintenance', 'update', 'announcement'
+- Research: 'study', 'analysis', 'review'
+- Market Movement: 'volatility', 'fluctuation'
+
+For each headline:
+1. Identify key terms from the classification rules
+2. Consider context and magnitude
+3. Assess market impact probability
+4. Calculate confidence based on source reliability and clarity
+
+Return a JSON object with:
+{
+  "sentiment": "positive" | "negative" | "neutral",
+  "score": number (0-1),
+  "confidence": number (0-1),
+  "impact": {
+    "shortTerm": number (0-1),
+    "longTerm": number (0-1)
+  },
+  "reasoning": string
+}`
+        },
+        {
+          role: "user",
+          content: JSON.stringify(headlines)
+        }
+      ],
+      response_format: { type: "json_object" },
+    });
+
+    let analysis = JSON.parse(response.choices[0].message.content);
+
+    // Normalize and validate initial analysis
+    let initialAnalysis: AINewsAnalysis = {
+      sentiment: analysis.sentiment || 'neutral',
+      score: Math.max(0, Math.min(1, analysis.score || 0.5)),
+      confidence: Math.max(0, Math.min(1, analysis.confidence || 0.5)),
       impact: {
-        shortTerm: Math.max(0.01, result.impact.shortTerm),
-        longTerm: Math.max(0.01, result.impact.longTerm)
+        shortTerm: Math.max(0, Math.min(1, analysis.impact?.shortTerm || 0.5)),
+        longTerm: Math.max(0, Math.min(1, analysis.impact?.longTerm || 0.5))
       }
     };
+
+    // Refine the analysis
+    return await refineNewsAnalysis(initialAnalysis, headlines);
   } catch (error) {
     console.error('AI News Analysis failed:', error);
     throw error;
+  }
+}
+
+async function refineTechnicalAnalysis(
+  analysis: AITechnicalAnalysis,
+  currentPrice: number,
+  volume24h: number,
+  priceChange24h: number
+): Promise<AITechnicalAnalysis> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content: `You are a crypto technical analysis expert. Review and refine the previous technical analysis:
+
+Current Market Data:
+- Price: $${currentPrice}
+- 24h Volume: $${volume24h}
+- 24h Price Change: $${priceChange24h}
+
+Previous Analysis:
+${JSON.stringify(analysis, null, 2)}
+
+Refine the analysis considering:
+1. Signal Confirmation:
+   - Multiple timeframe alignment
+   - Volume confirmation
+   - Pattern completion
+2. Relative Strength:
+   - Compare signals across indicators
+   - Weight based on reliability
+3. Market Context:
+   - Current market phase
+   - Support/resistance levels
+   - Volume profile
+
+Return refined JSON analysis with improved confidence scores and detailed reasoning.`
+        },
+        {
+          role: "user",
+          content: "Please refine the technical analysis with more precise signals and confidence levels."
+        }
+      ],
+      response_format: { type: "json_object" },
+    });
+
+    const refinedAnalysis = JSON.parse(response.choices[0].message.content);
+    return {
+      indicators: refinedAnalysis.indicators.map((indicator: any) => ({
+        ...indicator,
+        value: Number(indicator.value) || 0,
+        confidence: Math.max(0, Math.min(1, indicator.confidence || 0.5)),
+        signal: indicator.signal?.toLowerCase() || 'neutral'
+      })),
+      overallSentiment: Math.max(-1, Math.min(1, refinedAnalysis.overallSentiment || 0)),
+      priceRange: {
+        low: Math.max(0, refinedAnalysis.priceRange?.low || 0),
+        high: Math.max(refinedAnalysis.priceRange?.low || 0 + 1, refinedAnalysis.priceRange?.high || 0),
+        confidence: Math.max(0, Math.min(1, refinedAnalysis.priceRange?.confidence || 0.5))
+      }
+    };
+  } catch (error) {
+    console.error('Technical analysis refinement failed:', error);
+    return analysis;
   }
 }
 
@@ -104,43 +232,111 @@ export async function analyzeTechnicalIndicatorsWithAI(
   currentPrice: number,
   volume24h: number,
   priceChange24h: number,
-  existingIndicators?: TechnicalIndicator[]
+  existingIndicators: any[]
 ): Promise<AITechnicalAnalysis> {
   try {
     if (!await verifyApiKey()) {
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    // Get calculated indicators if not provided
-    const indicators = existingIndicators || getDefaultIndicators(currentPrice, volume24h);
-    const sentiment = calculateOverallSentiment(indicators);
-    const trend = getMarketTrend(
+    const technicalData = {
       currentPrice,
-      indicators.find(i => i.name === 'EMA (14)')?.value || 0,
-      indicators.find(i => i.name === 'RSI')?.value || 0,
-      indicators.find(i => i.name === 'MACD')?.value || 0
-    );
-
-    console.log('Analyzing technical data:', { currentPrice, volume24h, priceChange24h, indicators });
-    const result = await runTechnicalAnalysis(currentPrice, volume24h, priceChange24h);
-    console.log('Technical analysis result:', result);
-
-    return {
-      indicators: indicators.map(i => ({
-        name: i.name,
-        value: i.value,
-        signal: result.indicators.find(ai => ai.name === i.name)?.signal || i.signal || 'neutral',
-        confidence: Math.max(0.01, result.indicators.find(ai => ai.name === i.name)?.confidence || 0.5),
-        description: result.indicators.find(ai => ai.name === i.name)?.description || ''
-      })),
-      overallSentiment: Math.max(0.01, result.overallSentiment),
-      priceRange: {
-        low: Math.max(currentPrice * 0.95, result.priceRange.low),
-        high: Math.max(currentPrice * 1.05, result.priceRange.high),
-        confidence: Math.max(0.5, result.priceRange.confidence)
-      },
-      trend
+      volume24h,
+      priceChange24h,
+      indicators: existingIndicators,
+      technicalLevels: {
+        rsi: {
+          overbought: TECHNICAL_ANALYSIS.RSI.OVERBOUGHT,
+          oversold: TECHNICAL_ANALYSIS.RSI.OVERSOLD
+        },
+        fibonacci: TECHNICAL_ANALYSIS.FIBONACCI_LEVELS,
+        volumeZones: TECHNICAL_ANALYSIS.VOLUME_PROFILE_ZONES
+      }
     };
+
+    const response = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert crypto technical analyst. Analyze the market data using these indicators:
+          ${Object.values(TECHNICAL_INDICATORS).map(indicator => 
+            `${indicator.name}: ${indicator.description}`
+          ).join('\n')}
+
+Trading Signal Rules:
+BUY Signals:
+- RSI < 30: Strong oversold
+- StochRSI < 20: Extreme oversold
+- Price below lower BB with high volume
+- MACD bullish crossover
+- Multiple support level convergence
+- Rising volume with price increase
+
+SELL Signals:
+- RSI > 70: Strong overbought
+- StochRSI > 80: Extreme overbought
+- Price above upper BB with declining volume
+- MACD bearish crossover
+- Multiple resistance level convergence
+- Falling volume with price increase
+
+NEUTRAL Signals:
+- RSI between 40-60
+- Price within BB middle band
+- Low volume or conflicting indicators
+
+Signal Confidence Rules:
+- Multiple confirming indicators: High confidence (0.8-1.0)
+- Single strong signal: Medium confidence (0.5-0.7)
+- Mixed signals: Low confidence (0.2-0.4)
+- Conflicting signals: Very low confidence (0-0.1)
+
+Return detailed JSON analysis with:
+{
+  "indicators": [{
+    "name": string,
+    "value": number,
+    "signal": "buy" | "sell" | "neutral",
+    "confidence": number (0-1),
+    "description": string
+  }],
+  "overallSentiment": number (-1 to 1),
+  "priceRange": {
+    "low": number,
+    "high": number,
+    "confidence": number (0-1)
+  }
+}`
+        },
+        {
+          role: "user",
+          content: JSON.stringify(technicalData)
+        }
+      ],
+      response_format: { type: "json_object" },
+    });
+
+    const analysis = JSON.parse(response.choices[0].message.content);
+
+    // Normalize initial analysis
+    const initialAnalysis: AITechnicalAnalysis = {
+      indicators: analysis.indicators?.map((indicator: any) => ({
+        ...indicator,
+        value: Number(indicator.value) || 0,
+        confidence: Math.max(0, Math.min(1, indicator.confidence || 0.5)),
+        signal: indicator.signal?.toLowerCase() || 'neutral'
+      })) || [],
+      overallSentiment: Math.max(-1, Math.min(1, analysis.overallSentiment || 0)),
+      priceRange: {
+        low: Math.max(0, analysis.priceRange?.low || 0),
+        high: Math.max(analysis.priceRange?.low || 0 + 1, analysis.priceRange?.high || 0),
+        confidence: Math.max(0, Math.min(1, analysis.priceRange?.confidence || 0.5))
+      }
+    };
+
+    // Refine the analysis
+    return await refineTechnicalAnalysis(initialAnalysis, currentPrice, volume24h, priceChange24h);
   } catch (error) {
     console.error('AI Technical Analysis failed:', error);
     throw error;
@@ -162,55 +358,94 @@ export async function generatePredictionsWithAI(
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    const prompt = `You must respond with ONLY a valid JSON object in this exact format, no additional text or explanations:
+    const analysisData = {
+      currentPrice: price,
+      technicalAnalysis,
+      newsAnalysis,
+      timestamp: Date.now()
+    };
+
+    const response = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content: `You are a crypto price prediction expert. 
+
+Price Range Prediction Rules:
+1. Technical Factors Weight (70%):
+   - Strong oversold (RSI < 30): Expect 5-10% upside
+   - Strong overbought (RSI > 70): Expect 5-10% downside
+   - Bollinger Band breakouts: 2-5% movement in breakout direction
+   - MACD crossovers: 3-7% movement in signal direction
+   - Volume confirmation: Increase confidence by 20%
+
+2. News Impact Weight (30%):
+   - Major positive news: 2-5% upside
+   - Major negative news: 2-5% downside
+   - Multiple confirming news: Double the impact
+   - Contradictory news: Reduce range confidence
+
+3. Confidence Calculation:
+   - Technical signal agreement: 0-40%
+   - Volume confirmation: 0-20%
+   - News impact clarity: 0-20%
+   - Market volatility adjustment: 0-20%
+
+Return a JSON response with:
 {
-  "rangeLow": [number],
-  "rangeHigh": [number],
-  "confidence": [number between 0-100],
-  "reasoning": [string]
-}
+  "rangeLow": number,
+  "rangeHigh": number,
+  "confidence": number (0-100),
+  "reasoning": string
+}`
+        },
+        {
+          role: "user",
+          content: JSON.stringify(analysisData)
+        }
+      ],
+      response_format: { type: "json_object" },
+    });
 
-Analyze this crypto market data to generate price prediction:
-- Current price: ${price}
-- Technical indicators: ${JSON.stringify(technicalAnalysis.indicators.map(i => ({ name: i.name, signal: i.signal })))}
-- Market trend: ${technicalAnalysis.trend}
-- Market sentiment: ${technicalAnalysis.overallSentiment}
-- News sentiment: ${newsAnalysis.sentiment}
-- Short-term impact: ${newsAnalysis.impact.shortTerm}
-- Long-term impact: ${newsAnalysis.impact.longTerm}`;
+    const prediction = JSON.parse(response.choices[0].message.content);
 
-    console.log('Generating prediction with prompt:', prompt);
-    const response = await openai.invoke([prompt]);
-    console.log('Raw AI response:', response);
+    // Refine the prediction with a second pass
+    const refinementResponse = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content: `Review and refine the initial price prediction:
+Initial Prediction:
+- Range: $${prediction.rangeLow} - $${prediction.rangeHigh}
+- Confidence: ${prediction.confidence}%
 
-    if (!response.content || typeof response.content !== 'string') {
-      throw new Error('Invalid response format from OpenAI');
-    }
+Consider:
+1. Range Realism:
+   - Is the range too wide/narrow given market conditions?
+   - Are the levels aligned with key support/resistance?
+2. Confidence Accuracy:
+   - Are there enough confirming signals?
+   - Is the market context properly weighted?
 
-    let jsonResponse: any;
-    try {
-      // Extract JSON from the response if it's wrapped in text
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-      const jsonStr = jsonMatch ? jsonMatch[0] : response.content;
-      jsonResponse = JSON.parse(jsonStr);
-    } catch (error) {
-      console.error('JSON parsing error:', error);
-      // Fallback to conservative prediction
-      return {
-        rangeLow: price * 0.95,
-        rangeHigh: price * 1.05,
-        confidence: 50,
-        timestamp: Date.now()
-      };
-    }
+Return refined JSON prediction.`
+        },
+        {
+          role: "user",
+          content: JSON.stringify({ prediction, analysisData })
+        }
+      ],
+      response_format: { type: "json_object" },
+    });
 
-    const prediction = predictionSchema.parse(jsonResponse);
-    console.log('Parsed prediction:', prediction);
+    const refinedPrediction = JSON.parse(refinementResponse.choices[0].message.content);
 
     return {
-      rangeLow: Math.max(0, prediction.rangeLow),
-      rangeHigh: Math.max(prediction.rangeLow, prediction.rangeHigh),
-      confidence: Math.max(1, Math.min(100, prediction.confidence)),
+      rangeLow: Math.max(0, refinedPrediction.rangeLow || prediction.rangeLow || 0),
+      rangeHigh: Math.max(refinedPrediction.rangeLow || prediction.rangeLow || 0 + 1, 
+                         refinedPrediction.rangeHigh || prediction.rangeHigh || 0),
+      confidence: Math.max(0, Math.min(100, refinedPrediction.confidence || prediction.confidence || 50)),
       timestamp: Date.now()
     };
   } catch (error) {

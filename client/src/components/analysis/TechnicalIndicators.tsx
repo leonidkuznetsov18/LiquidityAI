@@ -43,17 +43,6 @@ export default function TechnicalIndicators({ data, isLoading }: Props) {
     }
   };
 
-  const getTrendColor = (trend: string) => {
-    switch (trend.toLowerCase()) {
-      case 'bullish':
-        return 'text-green-500';
-      case 'bearish':
-        return 'text-red-500';
-      default:
-        return 'text-yellow-500';
-    }
-  };
-
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">Technical Indicators</h2>
@@ -76,9 +65,6 @@ export default function TechnicalIndicators({ data, isLoading }: Props) {
               )}
               {Math.abs(data?.price24h.changePercentage || 0).toFixed(2)}%
             </span>
-          </div>
-          <div className={`text-sm mt-2 ${getTrendColor(data?.trend || 'neutral')}`}>
-            Market Trend: <span className="font-medium capitalize">{data?.trend || 'Neutral'}</span>
           </div>
         </div>
 
@@ -123,16 +109,14 @@ export default function TechnicalIndicators({ data, isLoading }: Props) {
                   <TooltipContent>
                     <div className="max-w-xs">
                       <p className="text-sm">{indicator.description}</p>
-                      {indicator.learnMoreUrl && (
-                        <a
-                          href={indicator.learnMoreUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary hover:underline mt-1 block"
-                        >
-                          Learn more →
-                        </a>
-                      )}
+                      <a
+                        href={indicator.learnMoreUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline mt-1 block"
+                      >
+                        Learn more →
+                      </a>
                     </div>
                   </TooltipContent>
                 </Tooltip>
