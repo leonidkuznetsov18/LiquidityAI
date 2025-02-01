@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
 import { Range, getTrackBackground } from "react-range";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface Props {
   predictions?: {
@@ -10,10 +9,9 @@ interface Props {
     rangeHigh: number;
     confidence: number;
   };
-  isLoading?: boolean;
 }
 
-export default function RangeAdjuster({ predictions, isLoading }: Props) {
+export default function RangeAdjuster({ predictions }: Props) {
   const [range, setRange] = useState<[number, number]>([
     predictions?.rangeLow || 1800,
     predictions?.rangeHigh || 2200,
@@ -33,32 +31,6 @@ export default function RangeAdjuster({ predictions, isLoading }: Props) {
 
   const minPrice = predictions ? Math.floor(predictions.rangeLow * 0.8) : 1500;
   const maxPrice = predictions ? Math.ceil(predictions.rangeHigh * 1.2) : 2500;
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <h2 className="text-lg font-semibold">Liquidity Range</h2>
-        <div className="space-y-8">
-          <div className="space-y-4">
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <Skeleton className="h-4 w-24 mb-2" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-              <div className="flex-1">
-                <Skeleton className="h-4 w-24 mb-2" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            </div>
-            <div className="py-8">
-              <Skeleton className="h-8 w-full" />
-            </div>
-          </div>
-          <Skeleton className="h-10 w-full" />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

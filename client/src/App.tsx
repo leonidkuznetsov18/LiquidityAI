@@ -5,6 +5,7 @@ import { ErrorBoundary } from "react-error-boundary";
 import Dashboard from "@/pages/dashboard";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
+import { AccountProvider } from "@/contexts/AccountContext";
 
 function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
   return (
@@ -41,8 +42,10 @@ function App() {
           onReset={reset}
           FallbackComponent={ErrorFallback}
         >
-          <Router />
-          <Toaster />
+            <AccountProvider>
+              <Router />
+              <Toaster />
+            </AccountProvider>
         </ErrorBoundary>
       )}
     </QueryErrorResetBoundary>

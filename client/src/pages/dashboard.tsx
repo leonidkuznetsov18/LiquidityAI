@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import TradingViewChart from "@/components/analysis/TradingViewChart";
 import TechnicalIndicators from "@/components/analysis/TechnicalIndicators";
 import SentimentPanel from "@/components/analysis/SentimentPanel";
-import RangeAdjuster from "@/components/liquidity/RangeAdjuster";
+import RangeAdjuster from "@/components/analysis/RangeAdjuster";
 import Sidebar from "@/components/layout/Sidebar";
 import { useMarketData } from "@/hooks/useMarketData";
 import { usePredictions } from "@/hooks/usePredictions";
@@ -11,22 +11,26 @@ import { formatDistanceToNow } from "date-fns";
 import { RefreshCw } from "lucide-react";
 import PredictionExplanationDialog from "@/components/analysis/PredictionExplanationDialog";
 import { useSentiment } from "@/hooks/useSentiment";
+import ConnectButton from "@/components/web3/ConnectButton.tsx";
 
 export default function Dashboard() {
-  const { data: marketData, isLoading: marketLoading, refetch: refetchMarket } = useMarketData();
+  const {
+    data: marketData,
+    isLoading: marketLoading,
+    refetch: refetchMarket,
+  } = useMarketData();
   const {
     data: predictions,
     refetch: refetchPredictions,
     isRefetching,
-    isLoading: predictionLoading,
   } = usePredictions();
 
-  const { refetch: refetchSantiment } = useSentiment()
+  const { refetch: refetchSantiment } = useSentiment();
 
   const handleRefresh = () => {
-    refetchMarket(); 
-    refetchPredictions(); 
-    refetchSantiment()
+    refetchMarket();
+    refetchPredictions();
+    refetchSantiment();
   };
 
   return (
@@ -34,6 +38,9 @@ export default function Dashboard() {
       <Sidebar />
 
       <main className="flex-1 p-6 space-y-6">
+        <div className="flex justify-end">
+          <ConnectButton />
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="col-span-2 p-4">
             <h2 className="text-lg font-semibold mb-4">ETH/USDC Price Chart</h2>
@@ -72,7 +79,7 @@ export default function Dashboard() {
                   Updated {formatDistanceToNow(predictions.timestamp)} ago
                 </div>
                 <div className="flex justify-end mt-2">
-                  <PredictionExplanationDialog 
+                  <PredictionExplanationDialog
                     explanation={predictions.explanation}
                     rangeLow={predictions.rangeLow}
                     rangeHigh={predictions.rangeHigh}
@@ -93,7 +100,7 @@ export default function Dashboard() {
           </Card>
 
           <Card className="p-4">
-            <RangeAdjuster predictions={predictions} isLoading={predictionLoading} />
+            <RangeAdjuster predictions={predictions} />
           </Card>
         </div>
       </main>
