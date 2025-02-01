@@ -40,69 +40,45 @@ const technicalAnalysisSchema = z.object({
   })
 });
 
-// Create prompt templates
-const newsAnalysisTemplate = `
-You are a crypto market expert specializing in news analysis.
-Return ONLY valid JSON without any additional text.
+// Create prompt templates with escaped format
+const newsPrompt = `You are a crypto market expert specializing in news analysis.
+Analyze the following headlines and return a JSON object with exactly this structure:
+sentiment: "positive" OR "negative" OR "neutral"
+score: number between 0 and 1
+confidence: number between 0 and 1
+impact: object with shortTerm and longTerm numbers between 0 and 1
+reasoning: explanation string
 
-{
-  "sentiment": "positive" | "negative" | "neutral",
-  "score": number from 0 to 1,
-  "confidence": number from 0 to 1,
-  "impact": {
-    "shortTerm": number from 0 to 1,
-    "longTerm": number from 0 to 1
-  },
-  "reasoning": "string"
-}
+Headlines: {headlines}`;
 
-Headlines to analyze: {headlines}`;
+const technicalPrompt = `You are an expert crypto technical analyst.
+Analyze the market data and return a JSON object with exactly this structure:
+indicators: array of objects with
+  name: string
+  value: number
+  signal: "buy" OR "sell" OR "neutral"
+  confidence: number between 0 and 1
+  description: string
+overallSentiment: number between -1 and 1
+priceRange: object with
+  low: number greater than 0
+  high: number greater than low
+  confidence: number between 0 and 1
 
-const technicalAnalysisTemplate = `
-You are an expert crypto technical analyst.
-Return ONLY valid JSON without any additional text.
-
-{
-  "indicators": [
-    {
-      "name": "string",
-      "value": number,
-      "signal": "buy" | "sell" | "neutral",
-      "confidence": number from 0 to 1,
-      "description": "string"
-    }
-  ],
-  "overallSentiment": number from -1 to 1,
-  "priceRange": {
-    "low": number greater than 0,
-    "high": number greater than low,
-    "confidence": number from 0 to 1
-  }
-}
-
-Market data: Price={price}, Volume={volume}, Change={change}`;
+Market data:
+Price: {price}
+Volume: {volume}
+Change: {change}`;
 
 // Create typed chains
 const createNewsAnalysisChain = () => {
-  const prompt = PromptTemplate.fromTemplate(newsAnalysisTemplate);
-  return RunnableSequence.from([
-    {
-      prompt: prompt,
-      model: model,
-      outputParser: new JsonOutputParser(),
-    }
-  ]).pipe(newsAnalysisSchema);
+  const prompt = PromptTemplate.fromTemplate(newsPrompt);
+  return RunnableSequence.from([prompt, model, new JsonOutputParser()]);
 };
 
 const createTechnicalAnalysisChain = () => {
-  const prompt = PromptTemplate.fromTemplate(technicalAnalysisTemplate);
-  return RunnableSequence.from([
-    {
-      prompt: prompt,
-      model: model,
-      outputParser: new JsonOutputParser(),
-    }
-  ]).pipe(technicalAnalysisSchema);
+  const prompt = PromptTemplate.fromTemplate(technicalPrompt);
+  return RunnableSequence.from([prompt, model, new JsonOutputParser()]);
 };
 
 // Export functions with proper typing and error handling
@@ -110,13 +86,12 @@ export async function runNewsAnalysis(headlines: string): Promise<z.infer<typeof
   try {
     const chain = createNewsAnalysisChain();
     const result = await chain.invoke({
-      headlines: headlines.replace(/[\[\]{}]/g, '')
+      headlines: headlines.replace(/[{}]/g, '')
     });
 
     return newsAnalysisSchema.parse(result);
   } catch (error) {
     console.error('News analysis chain failed:', error);
-    // Return fallback values that match the schema
     return {
       sentiment: "neutral",
       score: 0.5,
@@ -136,7 +111,6 @@ export async function runTechnicalAnalysis(
   priceChange: number
 ): Promise<z.infer<typeof technicalAnalysisSchema>> {
   try {
-    // Get technical indicators from calculations
     const indicators = getDefaultIndicators(price, volume);
     const sentiment = calculateOverallSentiment(price, volume);
     const trend = getMarketTrend(
@@ -156,12 +130,11 @@ export async function runTechnicalAnalysis(
 
       const parsedResult = technicalAnalysisSchema.parse(result);
 
-      // Merge AI results with calculated values
       return {
         indicators: indicators.map(i => ({
           name: i.name,
           value: i.value,
-          signal: i.signal || 'neutral',
+          signal: parsedResult.indicators.find(ai => ai.name === i.name)?.signal || 'neutral',
           confidence: Math.max(0.01, parsedResult.indicators.find(ai => ai.name === i.name)?.confidence || 0.5),
           description: parsedResult.indicators.find(ai => ai.name === i.name)?.description || ''
         })),

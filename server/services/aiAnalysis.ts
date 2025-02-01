@@ -1,6 +1,8 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 import { PromptTemplate } from "@langchain/core/prompts";
+import { JsonOutputParser } from "@langchain/core/output_parsers";
+import { RunnableSequence } from "@langchain/core/runnables";
 import { runNewsAnalysis, runTechnicalAnalysis } from './langGraph/analysisGraph';
 
 interface NewsItem {
@@ -42,7 +44,7 @@ const predictionSchema = z.object({
   reasoning: z.string()
 });
 
-// Initialize OpenAI chat model
+// Initialize OpenAI chat model with response format
 const openai = new ChatOpenAI({
   modelName: "gpt-4",
   temperature: 0.7,
@@ -55,7 +57,7 @@ async function verifyApiKey(): Promise<boolean> {
     return false;
   }
   try {
-    const prompt = PromptTemplate.fromTemplate('Test message');
+    const prompt = PromptTemplate.fromTemplate("Test prompt");
     await prompt.format({});
     return true;
   } catch (error) {
@@ -130,41 +132,37 @@ export async function generatePredictionsWithAI(
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    const template = `
-You are a crypto price prediction expert. Analyze the provided technical and news data to generate a price range prediction.
-Return ONLY valid JSON in this format:
-{
-  "rangeLow": number,
-  "rangeHigh": number,
-  "confidence": number between 0-100,
-  "reasoning": string
-}
+    const predictionPrompt = PromptTemplate.fromTemplate(`
+You are a crypto price prediction expert. Analyze this data and return a prediction:
+Current Price: {price}
+Technical Analysis: {technical}
+News Analysis: {news}
 
-Analysis data: {analysisData}`;
+Return a JSON object with exactly this structure:
+rangeLow: minimum price prediction (number)
+rangeHigh: maximum price prediction (number)
+confidence: prediction confidence 0-100 (number)
+reasoning: explanation (string)
+`);
 
-    const prompt = PromptTemplate.fromTemplate(template);
-    const formattedPrompt = await prompt.format({
-      analysisData: JSON.stringify({
-        currentPrice: price,
-        technicalAnalysis,
-        newsAnalysis,
-        timestamp: Date.now()
-      })
+    const chain = RunnableSequence.from([
+      predictionPrompt,
+      openai,
+      new JsonOutputParser()
+    ]);
+
+    const result = await chain.invoke({
+      price: price.toString(),
+      technical: JSON.stringify(technicalAnalysis),
+      news: JSON.stringify(newsAnalysis)
     });
 
-    const completion = await openai.invoke([formattedPrompt]);
-    const responseText = completion.content;
-
-    if (typeof responseText !== 'string') {
-      throw new Error('Invalid response format from OpenAI');
-    }
-
-    const result = predictionSchema.parse(JSON.parse(responseText));
+    const prediction = predictionSchema.parse(result);
 
     return {
-      rangeLow: Math.max(0, result.rangeLow),
-      rangeHigh: Math.max(result.rangeLow, result.rangeHigh),
-      confidence: Math.max(1, Math.min(100, result.confidence)),
+      rangeLow: Math.max(0, prediction.rangeLow),
+      rangeHigh: Math.max(prediction.rangeLow, prediction.rangeHigh),
+      confidence: Math.max(1, Math.min(100, prediction.confidence)),
       timestamp: Date.now()
     };
   } catch (error) {

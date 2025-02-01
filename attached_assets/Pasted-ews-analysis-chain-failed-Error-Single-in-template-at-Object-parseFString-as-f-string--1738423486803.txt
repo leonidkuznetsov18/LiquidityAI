@@ -1,0 +1,45 @@
+ews analysis chain failed: Error: Single '}' in template.
+    at Object.parseFString [as f-string] (file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/template.js:39:19)
+    at parseTemplate (file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/template.js:92:98)
+    at PromptTemplate.fromTemplate (file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/prompt.js:96:9)
+    at createNewsAnalysisChain (/home/runner/workspace/server/services/langGraph/analysisGraph.ts:87:33)
+    at runNewsAnalysis (/home/runner/workspace/server/services/langGraph/analysisGraph.ts:111:19)
+    at analyzeNewsWithAI (/home/runner/workspace/server/services/aiAnalysis.ts:74:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:97:28)
+News analysis result: {
+  sentiment: 'neutral',
+  score: 0.5,
+  confidence: 0.5,
+  impact: { shortTerm: 0.5, longTerm: 0.5 },
+  reasoning: 'Analysis failed, using fallback values'
+}
+AI Prediction Generation failed: Error: (f-string) Missing value for input 
+  "rangeLow": number,
+  "rangeHigh": number,
+  "confidence": number between 0-100,
+  "reasoning": string
+
+    at file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/template.js:78:15
+    at Array.reduce (<anonymous>)
+    at Object.interpolateFString [as f-string] (file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/template.js:73:80)
+    at renderTemplate (file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/template.js:91:115)
+    at PromptTemplate.format (file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/prompt.js:71:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generatePredictionsWithAI (/home/runner/workspace/server/services/aiAnalysis.ts:146:29)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:104:27)
+Prediction error: Error: (f-string) Missing value for input 
+  "rangeLow": number,
+  "rangeHigh": number,
+  "confidence": number between 0-100,
+  "reasoning": string
+
+    at file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/template.js:78:15
+    at Array.reduce (<anonymous>)
+    at Object.interpolateFString [as f-string] (file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/template.js:73:80)
+    at renderTemplate (file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/template.js:91:115)
+    at PromptTemplate.format (file:///home/runner/workspace/node_modules/@langchain/core/dist/prompts/prompt.js:71:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generatePredictionsWithAI (/home/runner/workspace/server/services/aiAnalysis.ts:146:29)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:104:27)
+3:23:52 PM [express] GET /api/predictions 500 in 3ms :: {"error":"Failed to generate predictions","d…
