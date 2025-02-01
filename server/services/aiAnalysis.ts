@@ -44,10 +44,13 @@ const predictionSchema = z.object({
   reasoning: z.string()
 });
 
-// Initialize OpenAI chat model with response format
+// Initialize OpenAI chat model with forced JSON response
 const openai = new ChatOpenAI({
   modelName: "gpt-4",
   temperature: 0.7,
+  modelKwargs: {
+    response_format: { type: "json_object" }
+  }
 });
 
 // Verify OpenAI API key validity
@@ -133,17 +136,19 @@ export async function generatePredictionsWithAI(
     }
 
     const predictionPrompt = PromptTemplate.fromTemplate(`
-You are a crypto price prediction expert. Analyze this data and return a prediction:
+System: You are a crypto price prediction expert. You must return only valid JSON without any explanation text.
+Human: Based on the following data, generate a price prediction:
 Current Price: {price}
 Technical Analysis: {technical}
 News Analysis: {news}
 
-Return a JSON object with exactly this structure:
-rangeLow: minimum price prediction (number)
-rangeHigh: maximum price prediction (number)
-confidence: prediction confidence 0-100 (number)
-reasoning: explanation (string)
-`);
+Return a JSON object with exactly these fields and nothing else:
+{
+  "rangeLow": number (minimum predicted price),
+  "rangeHigh": number (maximum predicted price),
+  "confidence": number (between 0-100),
+  "reasoning": string (brief explanation)
+}`);
 
     const chain = RunnableSequence.from([
       predictionPrompt,
@@ -151,13 +156,21 @@ reasoning: explanation (string)
       new JsonOutputParser()
     ]);
 
+    console.log('Generating prediction with data:', {
+      price,
+      technical: JSON.stringify(technicalAnalysis),
+      news: JSON.stringify(newsAnalysis)
+    });
+
     const result = await chain.invoke({
       price: price.toString(),
       technical: JSON.stringify(technicalAnalysis),
       news: JSON.stringify(newsAnalysis)
     });
 
+    console.log('Raw prediction result:', result);
     const prediction = predictionSchema.parse(result);
+    console.log('Parsed prediction:', prediction);
 
     return {
       rangeLow: Math.max(0, prediction.rangeLow),
