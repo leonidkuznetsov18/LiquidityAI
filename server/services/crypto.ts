@@ -1,5 +1,10 @@
 import axios from 'axios';
 import NodeCache from 'node-cache';
+import { 
+  analyzeNewsWithAI, 
+  analyzeTechnicalIndicatorsWithAI, 
+  generatePredictionsWithAI 
+} from './aiAnalysis';
 
 const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
@@ -61,8 +66,32 @@ export async function getTechnicalIndicators() {
   const priceChange = data.price_change_24h;
   const volume = data.volume_24h;
 
-  // Estimate buy/sell volume (simplified calculation)
-  const volumeBuy = volume * (priceChange > 0 ? 0.6 : 0.4); // More buys when price is up
+  // First try AI analysis
+  const aiAnalysis = await analyzeTechnicalIndicatorsWithAI(
+    data.price,
+    volume,
+    priceChange,
+    [] // Pass existing indicators if needed
+  );
+
+  if (aiAnalysis) {
+    return {
+      price24h: {
+        current: data.price,
+        change: data.price_change_24h,
+        changePercentage: (data.price_change_24h / data.price) * 100,
+      },
+      volume24h: {
+        total: data.volume_24h,
+        buy: volume * (priceChange > 0 ? 0.6 : 0.4),
+        sell: volume * (priceChange > 0 ? 0.4 : 0.6),
+      },
+      indicators: aiAnalysis.indicators
+    };
+  }
+
+  // Fallback to existing calculations if AI analysis fails
+  const volumeBuy = volume * (priceChange > 0 ? 0.6 : 0.4);
   const volumeSell = volume - volumeBuy;
 
   return {
@@ -220,24 +249,46 @@ export async function getCryptoNews(): Promise<NewsData> {
     );
 
     const newsItems = response.data.Data
-      .slice(0, 5) // Take only top 5 news items
+      .slice(0, 5)
       .map((article: any) => ({
         title: article.title,
         url: article.url,
-        sentiment: analyzeNewsSentiment(article.title + ' ' + article.body)
+        sentiment: 'neutral' // Default sentiment
       }));
 
-    const result: NewsData = {
-      news: {
-        headlines: newsItems,
-        score: calculateOverallSentiment(newsItems),
-      }
-    };
+    // Try AI analysis first
+    try {
+      const aiNewsAnalysis = await analyzeNewsWithAI(newsItems);
 
-    cache.set(cacheKey, result);
-    return result;
+      // Update sentiments based on AI analysis
+      newsItems.forEach((item: NewsItem, index: number) => {
+        item.sentiment = aiNewsAnalysis.sentiment;
+      });
+
+      const result: NewsData = {
+        news: {
+          headlines: newsItems,
+          score: aiNewsAnalysis.score
+        }
+      };
+
+      cache.set(cacheKey, result);
+      return result;
+    } catch (aiError) {
+      console.error('AI news analysis failed, falling back to basic analysis:', aiError);
+      // Fall back to existing analysis
+      return {
+        news: {
+          headlines: newsItems.map(item => ({
+            ...item,
+            sentiment: analyzeNewsSentiment(item.title)
+          })),
+          score: calculateOverallSentiment(newsItems),
+        }
+      };
+    }
   } catch (error) {
-    console.error('Error fetching crypto news:', error);
+    console.error('Failed to fetch crypto news:', error);
     throw error;
   }
 }
@@ -356,37 +407,55 @@ function calculateOverallSentiment(headlines: NewsItem[]): number {
 
 export async function generatePredictions() {
   const data = await getEthereumData();
-  const currentPrice = data.price;
 
-  // Get various technical indicators
-  const ema = calculateEMA(currentPrice, 14);
-  const bb = calculateBB(currentPrice);
-  const rsi = calculateRSI(currentPrice);
-  const macd = calculateMACD(currentPrice);
-  const atr = calculateATR(currentPrice);
+  try {
+    // Get technical and news analysis
+    const technicalAnalysis = await analyzeTechnicalIndicatorsWithAI(
+      data.price,
+      data.volume_24h,
+      data.price_change_24h,
+      [] // Pass existing indicators if needed
+    );
 
-  // Calculate volatility based on ATR
-  const volatility = atr / currentPrice;
+    const newsData = await getCryptoNews();
+    const newsAnalysis = await analyzeNewsWithAI(newsData.news.headlines);
 
-  // Use RSI to determine market sentiment
+    // Generate AI predictions
+    const aiPredictions = await generatePredictionsWithAI(
+      data.price,
+      technicalAnalysis,
+      newsAnalysis
+    );
+
+    if (aiPredictions) {
+      return aiPredictions;
+    }
+  } catch (error) {
+    console.error('AI prediction failed, falling back to traditional analysis:', error);
+  }
+
+  // Fallback to existing calculations if AI analysis fails
+  const ema = calculateEMA(data.price, 14);
+  const bb = calculateBB(data.price);
+  const rsi = calculateRSI(data.price);
+  const macd = calculateMACD(data.price);
+  const atr = calculateATR(data.price);
+
+  const volatility = atr / data.price;
   const sentiment = rsi > 70 ? -1 : rsi < 30 ? 1 : 0;
 
-  // Calculate dynamic range based on technical indicators
-  const rangeLow = currentPrice * (1 - (volatility * (1 + sentiment * 0.5)));
-  const rangeHigh = currentPrice * (1 + (volatility * (1 - sentiment * 0.5)));
+  const rangeLow = data.price * (1 - (volatility * (1 + sentiment * 0.5)));
+  const rangeHigh = data.price * (1 + (volatility * (1 - sentiment * 0.5)));
 
-  // Calculate confidence based on indicator agreement
-  let confidenceScore = 75; // Base confidence
+  let confidenceScore = 75;
 
-  // Adjust confidence based on indicator alignment
-  if (currentPrice < ema && rangeLow < currentPrice) confidenceScore += 5;
-  if (currentPrice > ema && rangeHigh > currentPrice) confidenceScore += 5;
+  if (data.price < ema && rangeLow < data.price) confidenceScore += 5;
+  if (data.price > ema && rangeHigh > data.price) confidenceScore += 5;
   if (macd > 0 && sentiment > 0) confidenceScore += 5;
   if (macd < 0 && sentiment < 0) confidenceScore += 5;
   if (rsi > 50 && sentiment > 0) confidenceScore += 5;
   if (rsi < 50 && sentiment < 0) confidenceScore += 5;
 
-  // Ensure confidence stays within bounds
   confidenceScore = Math.min(95, Math.max(60, confidenceScore));
 
   return {
