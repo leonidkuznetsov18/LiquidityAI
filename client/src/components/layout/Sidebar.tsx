@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import {
   LayoutDashboard,
   Settings,
@@ -40,7 +41,16 @@ export default function Sidebar() {
       )}
     >
       <div className="h-16 border-b flex items-center justify-between px-4">
-        {!collapsed && <span className="font-semibold">Uniswap V3 AI</span>}
+        <div className="flex items-center gap-3">
+          <Avatar className="h-8 w-8">
+            <AvatarImage 
+              src="https://image.tmdb.org/t/p/original/ooqASvA7qxlTVKL3KwOzBwy57Dh.jpg" 
+              alt="Ranger Logo"
+            />
+          </Avatar>
+          {!collapsed && <span className="font-semibold">Ranger</span>}
+        </div>
+
         <Button
           variant="ghost"
           size="icon"
