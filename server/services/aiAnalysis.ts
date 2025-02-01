@@ -3,7 +3,7 @@ import {
   NewsItem, 
   AINewsAnalysis, 
   AITechnicalAnalysis,
-  TECHNICAL_INDICATORS,
+  REQUIRED_INDICATORS,
   TECHNICAL_ANALYSIS
 } from './utils/utils';
 
@@ -52,12 +52,12 @@ async function refineNewsAnalysis(
           2. Source Credibility
           3. Time Relevance
           4. Market Context
-
+          
           Current analysis:
           - Sentiment: ${analysis.sentiment}
           - Score: ${analysis.score}
           - Confidence: ${analysis.confidence}
-
+          
           Return refined JSON analysis with detailed reasoning.`
         },
         {
@@ -96,31 +96,31 @@ export async function analyzeNewsWithAI(headlines: NewsItem[]): Promise<AINewsAn
         {
           role: "system",
           content: `You are a crypto market expert specializing in news analysis. Analyze the provided headlines for market impact.
-
+          
 Sentiment Classification Rules:
 POSITIVE indicators:
 - Adoption/Integration: 'partnership', 'integration', 'launch', 'adoption'
 - Development: 'upgrade', 'improvement', 'milestone', 'achievement'
 - Market Growth: 'surge', 'rally', 'breakthrough', 'record'
 - Institutional Interest: 'investment', 'institutional', 'fund', 'acquisition'
-
+          
 NEGATIVE indicators:
 - Security Issues: 'hack', 'breach', 'vulnerability', 'exploit'
 - Regulatory: 'ban', 'restriction', 'crackdown', 'regulation'
 - Market Decline: 'crash', 'decline', 'dump', 'selloff'
 - Technical Problems: 'bug', 'issue', 'delay', 'failure'
-
+          
 NEUTRAL indicators:
 - Updates: 'maintenance', 'update', 'announcement'
 - Research: 'study', 'analysis', 'review'
 - Market Movement: 'volatility', 'fluctuation'
-
+          
 For each headline:
 1. Identify key terms from the classification rules
 2. Consider context and magnitude
 3. Assess market impact probability
 4. Calculate confidence based on source reliability and clarity
-
+          
 Return a JSON object with:
 {
   "sentiment": "positive" | "negative" | "neutral",
@@ -175,15 +175,15 @@ async function refineTechnicalAnalysis(
         {
           role: "system",
           content: `You are a crypto technical analysis expert. Review and refine the previous technical analysis:
-
+          
 Current Market Data:
 - Price: $${currentPrice}
 - 24h Volume: $${volume24h}
 - 24h Price Change: $${priceChange24h}
-
+          
 Previous Analysis:
 ${JSON.stringify(analysis, null, 2)}
-
+          
 Refine the analysis considering:
 1. Signal Confirmation:
    - Multiple timeframe alignment
@@ -196,7 +196,7 @@ Refine the analysis considering:
    - Current market phase
    - Support/resistance levels
    - Volume profile
-
+          
 Return refined JSON analysis with improved confidence scores and detailed reasoning.`
         },
         {
@@ -228,7 +228,7 @@ Return refined JSON analysis with improved confidence scores and detailed reason
   }
 }
 
-export async function analyzeTechnicalIndicatorsWithAI(
+async function analyzeTechnicalIndicatorsWithAI(
   currentPrice: number,
   volume24h: number,
   priceChange24h: number,
@@ -259,10 +259,11 @@ export async function analyzeTechnicalIndicatorsWithAI(
       messages: [
         {
           role: "system",
-          content: `You are an expert crypto technical analyst. Analyze the market data using these indicators:
-          ${Object.values(TECHNICAL_INDICATORS).map(indicator => 
-            `${indicator.name}: ${indicator.description}`
-          ).join('\n')}
+          content: `You are an expert crypto technical analyst. Analyze the following 8 technical indicators:
+
+${REQUIRED_INDICATORS.map(indicator => 
+  `${indicator.fullName}: ${indicator.description}`
+).join('\n')}
 
 Trading Signal Rules:
 BUY Signals:
@@ -292,20 +293,21 @@ Signal Confidence Rules:
 - Mixed signals: Low confidence (0.2-0.4)
 - Conflicting signals: Very low confidence (0-0.1)
 
-Return detailed JSON analysis with:
+Return a JSON response with:
 {
   "indicators": [{
     "name": string,
     "value": number,
     "signal": "buy" | "sell" | "neutral",
-    "confidence": number (0-1),
-    "description": string
+    "confidence": number,
+    "description": string,
+    "learnMoreUrl": string
   }],
   "overallSentiment": number (-1 to 1),
   "priceRange": {
     "low": number,
     "high": number,
-    "confidence": number (0-1)
+    "confidence": number
   }
 }`
         },
@@ -319,24 +321,36 @@ Return detailed JSON analysis with:
 
     const analysis = JSON.parse(response.choices[0].message.content);
 
-    // Normalize initial analysis
-    const initialAnalysis: AITechnicalAnalysis = {
-      indicators: analysis.indicators?.map((indicator: any) => ({
-        ...indicator,
-        value: Number(indicator.value) || 0,
-        confidence: Math.max(0, Math.min(1, indicator.confidence || 0.5)),
-        signal: indicator.signal?.toLowerCase() || 'neutral'
-      })) || [],
+    // Map the AI analysis back to our required indicator structure
+    const normalizedIndicators = REQUIRED_INDICATORS.map(requiredIndicator => {
+      const aiIndicator = analysis.indicators.find(
+        (i: any) => i.name.toLowerCase().includes(requiredIndicator.name.toLowerCase())
+      ) || {
+        value: 0,
+        signal: 'neutral',
+        confidence: 0.5
+      };
+
+      return {
+        name: requiredIndicator.fullName,
+        value: Number(aiIndicator.value) || 0,
+        signal: aiIndicator.signal?.toLowerCase() || 'neutral',
+        confidence: Math.max(0, Math.min(1, aiIndicator.confidence || 0.5)),
+        description: requiredIndicator.description,
+        learnMoreUrl: requiredIndicator.learnMoreUrl
+      };
+    });
+
+    return {
+      indicators: normalizedIndicators,
       overallSentiment: Math.max(-1, Math.min(1, analysis.overallSentiment || 0)),
       priceRange: {
-        low: Math.max(0, analysis.priceRange?.low || 0),
-        high: Math.max(analysis.priceRange?.low || 0 + 1, analysis.priceRange?.high || 0),
+        low: Math.max(currentPrice * 0.85, Math.min(analysis.priceRange?.low || currentPrice * 0.95, currentPrice * 0.95)),
+        high: Math.max(currentPrice * 1.05, Math.min(analysis.priceRange?.high || currentPrice * 1.15, currentPrice * 1.15)),
         confidence: Math.max(0, Math.min(1, analysis.priceRange?.confidence || 0.5))
       }
     };
 
-    // Refine the analysis
-    return await refineTechnicalAnalysis(initialAnalysis, currentPrice, volume24h, priceChange24h);
   } catch (error) {
     console.error('AI Technical Analysis failed:', error);
     throw error;
@@ -372,40 +386,40 @@ export async function generatePredictionsWithAI(
         {
           role: "system",
           content: `You are a crypto price prediction expert. 
-
+          
 Price Range Prediction Rules:
 1. Technical Analysis Weight (70%):
    - Current Price is the anchor point
    - Maximum range deviation: ±5% from current price for high confidence
    - Maximum range deviation: ±8% from current price for medium confidence
    - Maximum range deviation: ±12% from current price for low confidence
-
+          
 2. Signal Strength Impact:
    - Strong buy signals: Push range up by 2-3%
    - Strong sell signals: Push range down by 2-3%
    - Mixed signals: Keep range tight (±3%)
-
+          
 3. Volume Confirmation:
    - High volume confirms trend: Expand range by 1%
    - Low volume suggests uncertainty: Contract range by 1%
-
+          
 4. News Impact (30%):
    - Major positive news: +1-2% to range
    - Major negative news: -1-2% to range
    - News confidence below 0.5: Reduce impact by 50%
-
+          
 5. Confidence Calculation:
    - Technical signal agreement: 0-40%
    - Volume confirmation: 0-20%
    - News impact clarity: 0-20%
    - Market volatility adjustment: 0-20%
-
+          
 6. Validation Rules:
    - rangeLow must be > currentPrice * 0.88
    - rangeHigh must be < currentPrice * 1.12
    - rangeLow must be < rangeHigh
    - Confidence must be between 0-100
-
+          
 Return a JSON response with:
 {
   "rangeLow": number,
@@ -446,3 +460,5 @@ Return a JSON response with:
     throw error;
   }
 }
+
+export { analyzeTechnicalIndicatorsWithAI };
