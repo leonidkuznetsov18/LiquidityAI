@@ -3,8 +3,6 @@ import { createServer, type Server } from "http";
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
 import { getEthereumData, getTechnicalIndicators, getCryptoNews, generatePredictions } from './services/crypto';
-import { getUniswapPools } from './services/uniswap';
-import { getPancakeswapPools } from './services/pancakeswap';
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
@@ -47,54 +45,6 @@ export function registerRoutes(app: Express): Server {
       res.json(data);
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch market data' });
-    }
-  });
-
-  // Uniswap Pools API
-  app.get('/api/uniswap/pools', async (_req, res) => {
-    try {
-      const { pools } = await getUniswapPools();
-      // Add platform identifier to each pool
-      const poolsWithPlatform = pools.map(pool => ({
-        ...pool,
-        platform: 'uniswap'
-      }));
-      res.json({ pools: poolsWithPlatform });
-    } catch (error) {
-      console.error('Error in /api/uniswap/pools:', error);
-      res.json({ pools: [] });
-    }
-  });
-
-  // PancakeSwap Pools API
-  app.get('/api/pancakeswap/pools', async (_req, res) => {
-    try {
-      const { pools } = await getPancakeswapPools();
-      res.json({ pools });
-    } catch (error) {
-      console.error('Error in /api/pancakeswap/pools:', error);
-      res.json({ pools: [] });
-    }
-  });
-
-  // Combined Pools API
-  app.get('/api/pools/all', async (_req, res) => {
-    try {
-      const [uniswapResult, pancakeswapResult] = await Promise.all([
-        getUniswapPools(),
-        getPancakeswapPools()
-      ]);
-
-      const uniswapPools = uniswapResult.pools.map(pool => ({
-        ...pool,
-        platform: 'uniswap'
-      }));
-
-      const allPools = [...uniswapPools, ...pancakeswapResult.pools];
-      res.json({ pools: allPools });
-    } catch (error) {
-      console.error('Error in /api/pools/all:', error);
-      res.json({ pools: [] });
     }
   });
 
