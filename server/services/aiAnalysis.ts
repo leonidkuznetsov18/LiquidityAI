@@ -259,54 +259,66 @@ async function analyzeTechnicalIndicatorsWithAI(
       messages: [
         {
           role: "system",
-          content: `You are an expert crypto technical analyst. Analyze the following 8 technical indicators:
-${REQUIRED_INDICATORS.map(indicator => 
-  `${indicator.fullName}: ${indicator.description}`
-).join('\n')}
+          content: `You are an expert crypto technical analyst. Analyze the following indicators with specific value validation rules:
 
-Trading Signal Rules:
-BUY Signals:
-- RSI < 30: Strong oversold
-- StochRSI < 20: Extreme oversold
-- Price below lower BB with high volume
-- MACD bullish crossover
-- Multiple support level convergence
-- Rising volume with price increase
+Technical Indicator Validation Rules:
+1. EMA (Exponential Moving Average):
+   - Value must be within ±5% of current price
+   - Higher values suggest uptrend, lower suggest downtrend
 
-SELL Signals:
-- RSI > 70: Strong overbought
-- StochRSI > 80: Extreme overbought
-- Price above upper BB with declining volume
-- MACD bearish crossover
-- Multiple resistance level convergence
-- Falling volume with price increase
+2. MACD:
+   - Value should be between -3% and +3% of price
+   - Positive values suggest bullish momentum
+   - Negative values suggest bearish momentum
 
-NEUTRAL Signals:
-- RSI between 40-60
-- Price within BB middle band
-- Low volume or conflicting indicators
+3. RSI (Relative Strength Index):
+   - Must be between 0-100
+   - Overbought above 70
+   - Oversold below 30
+   - Normal range 40-60
+
+4. Stochastic RSI:
+   - Must be between 0-100
+   - Extreme overbought above 80
+   - Extreme oversold below 20
+
+5. Bollinger Bands:
+   - Upper/Lower bands within ±2-3 standard deviations
+   - Value represents band width
+   - Normal range 2-5% of price
+
+6. ATR (Average True Range):
+   - Should be 0.5-3% of current price
+   - Higher values indicate higher volatility
+
+7. Fibonacci Retracements:
+   - Must align with key levels: 0.236, 0.382, 0.5, 0.618, 0.786
+   - Value represents the primary support/resistance level
+
+8. VPVR (Volume Profile):
+   - Value proportional to volume * price
+   - Higher values indicate stronger price levels
 
 Signal Confidence Rules:
-- Multiple confirming indicators: High confidence (0.8-1.0)
-- Single strong signal: Medium confidence (0.5-0.7)
-- Mixed signals: Low confidence (0.2-0.4)
-- Conflicting signals: Very low confidence (0-0.1)
+- Multiple confirming indicators: 0.8-1.0
+- Strong single signal: 0.6-0.7
+- Mixed signals: 0.4-0.5
+- Conflicting signals: 0.2-0.3
 
-Return a JSON response with:
+Return a detailed JSON with:
 {
   "indicators": [{
     "name": string,
-    "value": number,
+    "value": number (with proper range validation),
     "signal": "buy" | "sell" | "neutral",
-    "confidence": number,
-    "description": string,
-    "learnMoreUrl": string
+    "confidence": number (0-1),
+    "reasoning": string
   }],
   "overallSentiment": number (-1 to 1),
   "priceRange": {
-    "low": number,
-    "high": number,
-    "confidence": number
+    "low": number (max 8% below current),
+    "high": number (max 8% above current),
+    "confidence": number (0-1)
   }
 }`
         },
@@ -318,9 +330,13 @@ Return a JSON response with:
       response_format: { type: "json_object" },
     });
 
+    if (!response.choices[0].message.content) {
+      throw new Error('Empty response from OpenAI');
+    }
+
     const analysis = JSON.parse(response.choices[0].message.content);
 
-    // Map the AI analysis back to our required indicator structure
+    // Map and validate the AI analysis
     const normalizedIndicators = REQUIRED_INDICATORS.map(requiredIndicator => {
       const aiIndicator = analysis.indicators.find(
         (i: any) => i.name.toLowerCase().includes(requiredIndicator.name.toLowerCase())
@@ -330,9 +346,15 @@ Return a JSON response with:
         confidence: 0.5
       };
 
+      // Ensure the value is within reasonable bounds
+      let normalizedValue = Number(aiIndicator.value);
+      if (isNaN(normalizedValue) || !isFinite(normalizedValue)) {
+        normalizedValue = 0;
+      }
+
       return {
         name: requiredIndicator.fullName,
-        value: Number(aiIndicator.value) || 0,
+        value: normalizedValue,
         signal: aiIndicator.signal?.toLowerCase() || 'neutral',
         confidence: Math.max(0, Math.min(1, aiIndicator.confidence || 0.5)),
         description: requiredIndicator.description,
@@ -344,8 +366,8 @@ Return a JSON response with:
       indicators: normalizedIndicators,
       overallSentiment: Math.max(-1, Math.min(1, analysis.overallSentiment || 0)),
       priceRange: {
-        low: Math.max(currentPrice * 0.85, Math.min(analysis.priceRange?.low || currentPrice * 0.95, currentPrice * 0.95)),
-        high: Math.max(currentPrice * 1.05, Math.min(analysis.priceRange?.high || currentPrice * 1.15, currentPrice * 1.15)),
+        low: Math.max(currentPrice * 0.92, analysis.priceRange?.low || currentPrice * 0.95),
+        high: Math.min(currentPrice * 1.08, analysis.priceRange?.high || currentPrice * 1.05),
         confidence: Math.max(0, Math.min(1, analysis.priceRange?.confidence || 0.5))
       }
     };
