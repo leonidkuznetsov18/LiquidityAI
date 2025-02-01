@@ -1,13 +1,44 @@
-// Market Data Types
-export interface CryptoData {
-  price: number;
-  volume_24h: number;
-  price_change_24h: number;
-  market_cap: number;
-  volume_buy_24h?: number;
-  volume_sell_24h?: number;
-}
+// Technical Analysis Constants
+export const TECHNICAL_ANALYSIS = {
+  RSI: {
+    OVERBOUGHT: 70,
+    OVERSOLD: 30
+  },
+  FIBONACCI_LEVELS: [0.236, 0.382, 0.5, 0.618, 0.786],
+  VOLUME_PROFILE_ZONES: {
+    HIGH_VOLUME_THRESHOLD: 1000000,
+    LOW_VOLUME_THRESHOLD: 100000
+  }
+};
 
+export const TECHNICAL_INDICATORS = {
+  RSI: {
+    name: "Relative Strength Index (RSI)",
+    description: "Momentum oscillator measuring speed and change of price movements. Values range from 0 to 100."
+  },
+  STOCH_RSI: {
+    name: "Stochastic RSI",
+    description: "Combines RSI and stochastic oscillator to provide more refined overbought/oversold signals."
+  },
+  BB: {
+    name: "Bollinger Bands",
+    description: "Shows volatility channels around a moving average to identify potential reversal points."
+  },
+  ATR: {
+    name: "Average True Range",
+    description: "Measures market volatility by decomposing price movement."
+  },
+  FIBONACCI: {
+    name: "Fibonacci Retracement",
+    description: "Key levels based on Fibonacci ratios to identify potential support/resistance."
+  },
+  VPVR: {
+    name: "Volume Profile Visible Range",
+    description: "Shows trading activity at specific price levels to identify support/resistance zones."
+  }
+};
+
+// Interfaces for News Analysis
 export interface NewsItem {
   title: string;
   url: string;
@@ -21,7 +52,7 @@ export interface NewsData {
   };
 }
 
-// AI Analysis Types
+// Interfaces for AI Analysis
 export interface AINewsAnalysis {
   sentiment: 'positive' | 'negative' | 'neutral';
   score: number;
@@ -33,7 +64,13 @@ export interface AINewsAnalysis {
 }
 
 export interface AITechnicalAnalysis {
-  indicators: TechnicalIndicator[];
+  indicators: {
+    name: string;
+    value: number;
+    signal: 'buy' | 'sell' | 'neutral';
+    confidence: number;
+    description: string;
+  }[];
   overallSentiment: number;  // -1 to 1 scale
   priceRange: {
     low: number;
@@ -42,79 +79,6 @@ export interface AITechnicalAnalysis {
   };
 }
 
-export interface TechnicalIndicator {
-  name: string;
-  value: number;
-  signal: 'buy' | 'sell' | 'neutral';
-  confidence: number;
-  description: string;
-  learnMoreUrl?: string;
-}
-
-// Constants
-export const TECHNICAL_INDICATORS = {
-  RSI: {
-    name: 'RSI',
-    description: 'Relative Strength Index measures momentum and overbought/oversold conditions',
-    learnMoreUrl: 'https://www.investopedia.com/terms/r/rsi.asp'
-  },
-  STOCH_RSI: {
-    name: 'Stochastic RSI',
-    description: 'Combines RSI with stochastic oscillator for enhanced momentum signals',
-    learnMoreUrl: 'https://www.investopedia.com/terms/s/stochrsi.asp'
-  },
-  BB: {
-    name: 'Bollinger Bands',
-    description: 'Shows price volatility and potential reversals using standard deviations',
-    learnMoreUrl: 'https://www.investopedia.com/terms/b/bollingerbands.asp'
-  },
-  ATR: {
-    name: 'Average True Range',
-    description: 'Measures market volatility and potential trend strength',
-    learnMoreUrl: 'https://www.investopedia.com/terms/a/atr.asp'
-  },
-  FIBONACCI: {
-    name: 'Fibonacci Retracement',
-    description: 'Identifies potential support/resistance levels using Fibonacci ratios',
-    learnMoreUrl: 'https://www.investopedia.com/terms/f/fibonacciretracement.asp'
-  },
-  VPVR: {
-    name: 'Volume Profile',
-    description: 'Shows trading activity at price levels to identify support/resistance',
-    learnMoreUrl: 'https://www.investopedia.com/terms/v/volume-profile.asp'
-  },
-  MACD: {
-    name: 'MACD',
-    description: 'Moving Average Convergence Divergence shows momentum and trend changes',
-    learnMoreUrl: 'https://www.investopedia.com/terms/m/macd.asp'
-  },
-  EMA: {
-    name: 'EMA',
-    description: 'Exponential Moving Average emphasizes recent price changes',
-    learnMoreUrl: 'https://www.investopedia.com/terms/e/ema.asp'
-  }
-};
-
-// API Endpoints and Configuration
-export const API_ENDPOINTS = {
-  COINGECKO_BASE_URL: 'https://api.coingecko.com/api/v3',
-  CRYPTOCOMPARE_BASE_URL: 'https://min-api.cryptocompare.com/data/v2'
-};
-
-export const CACHE_CONFIG = {
-  DEFAULT_TTL: 3600 // 1 hour
-};
-
-// Technical Analysis Constants
-export const TECHNICAL_ANALYSIS = {
-  RSI: {
-    OVERBOUGHT: 70,
-    OVERSOLD: 30
-  },
-  BB: {
-    PERIOD: 20,
-    STD_DEV: 2
-  },
-  FIBONACCI_LEVELS: [0.236, 0.382, 0.5, 0.618, 0.786],
-  VOLUME_PROFILE_ZONES: 12
-};
+// Common Types
+export type Signal = 'buy' | 'sell' | 'neutral';
+export type Sentiment = 'positive' | 'negative' | 'neutral';

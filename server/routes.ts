@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
-import { getEthereumData, getTechnicalIndicators, getCryptoNews, generatePredictions } from './services/crypto';
+import { getEthereumData, getCryptoNews } from './services/crypto';
 import { analyzeNewsWithAI, analyzeTechnicalIndicatorsWithAI, generatePredictionsWithAI } from './services/aiAnalysis';
 
 export function registerRoutes(app: Express): Server {
@@ -80,10 +80,27 @@ export function registerRoutes(app: Express): Server {
   // Predictions API
   app.get('/api/predictions', async (_req, res) => {
     try {
-      const predictions = await generatePredictions();
+      const ethData = await getEthereumData();
+      const technicalAnalysis = await analyzeTechnicalIndicatorsWithAI(
+        ethData.price,
+        ethData.volume_24h,
+        ethData.price_change_24h,
+        []
+      );
+
+      const newsData = await getCryptoNews();
+      const newsAnalysis = await analyzeNewsWithAI(newsData.news.headlines);
+
+      const predictions = await generatePredictionsWithAI(
+        ethData.price,
+        technicalAnalysis,
+        newsAnalysis
+      );
+
       if (!predictions) {
         throw new Error('Failed to generate predictions');
       }
+
       res.json(predictions);
     } catch (error) {
       console.error('Prediction error:', error);
