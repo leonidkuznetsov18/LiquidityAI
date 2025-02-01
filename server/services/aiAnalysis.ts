@@ -44,13 +44,10 @@ const predictionSchema = z.object({
   reasoning: z.string()
 });
 
-// Initialize OpenAI chat model with forced JSON response
+// Initialize OpenAI chat model
 const openai = new ChatOpenAI({
   modelName: "gpt-4",
   temperature: 0.7,
-  modelKwargs: {
-    response_format: { type: "json_object" }
-  }
 });
 
 // Verify OpenAI API key validity
@@ -135,23 +132,23 @@ export async function generatePredictionsWithAI(
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    const prompt = `Generate crypto price prediction based on:
-Current price: ${price}
-Technical indicators: ${JSON.stringify(technicalAnalysis.indicators.map(i => ({ name: i.name, signal: i.signal, confidence: i.confidence })))}
-Price sentiment: ${technicalAnalysis.overallSentiment}
-News sentiment: ${newsAnalysis.sentiment} (confidence: ${newsAnalysis.confidence})
-Impact: Short-term ${newsAnalysis.impact.shortTerm}, Long-term ${newsAnalysis.impact.longTerm}
-
-Respond with ONLY a JSON object containing:
+    const prompt = `You must respond with ONLY a valid JSON object in this exact format, no additional text or explanations:
 {
-  "rangeLow": [minimum price],
-  "rangeHigh": [maximum price],
-  "confidence": [0-100],
-  "reasoning": [brief explanation]
-}`;
+  "rangeLow": [number],
+  "rangeHigh": [number],
+  "confidence": [number between 0-100],
+  "reasoning": [string]
+}
+
+Analyze this crypto market data to generate price prediction:
+- Current price: ${price}
+- Technical indicators: ${JSON.stringify(technicalAnalysis.indicators.map(i => ({ name: i.name, signal: i.signal })))}
+- Market sentiment: ${technicalAnalysis.overallSentiment}
+- News sentiment: ${newsAnalysis.sentiment}
+- Short-term impact: ${newsAnalysis.impact.shortTerm}
+- Long-term impact: ${newsAnalysis.impact.longTerm}`;
 
     console.log('Generating prediction with prompt:', prompt);
-
     const response = await openai.invoke([prompt]);
     console.log('Raw AI response:', response);
 
@@ -161,7 +158,10 @@ Respond with ONLY a JSON object containing:
 
     let jsonResponse: any;
     try {
-      jsonResponse = JSON.parse(response.content);
+      // Extract JSON from the response if it's wrapped in text
+      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? jsonMatch[0] : response.content;
+      jsonResponse = JSON.parse(jsonStr);
     } catch (error) {
       console.error('JSON parsing error:', error);
       // Fallback to conservative prediction
