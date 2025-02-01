@@ -1,15 +1,11 @@
 import { type NewsItem, type AINewsAnalysis, type AITechnicalAnalysis } from './utils/utils';
-import { 
-  createNewsAnalysisChain, 
-  createTechnicalAnalysisChain, 
-  runAnalysisWithRefinement 
-} from './langGraph/analysisGraph';
+import { runNewsAnalysis, runTechnicalAnalysis } from './langGraph/analysisGraph';
 import { ChatOpenAI } from "@langchain/openai";
-import { TECHNICAL_INDICATORS } from './utils/utils';
 
-// Initialize OpenAI chat model, still needed for fallback and verification
+// Initialize OpenAI chat model for fallback
 const openai = new ChatOpenAI({
-  modelName: "gpt-4o", // Latest model as of May 13, 2024
+  modelName: "gpt-4",
+  temperature: 0.7,
 });
 
 // Verify OpenAI API key validity
@@ -33,8 +29,9 @@ export async function analyzeNewsWithAI(headlines: NewsItem[]): Promise<AINewsAn
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    const chain = createNewsAnalysisChain();
-    const result = await runAnalysisWithRefinement(chain, { headlines: JSON.stringify(headlines) });
+    console.log('Analyzing headlines:', headlines);
+    const result = await runNewsAnalysis(JSON.stringify(headlines));
+    console.log('News analysis result:', result);
 
     return {
       sentiment: result.sentiment,
@@ -59,16 +56,12 @@ export async function analyzeTechnicalIndicatorsWithAI(
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    const chain = createTechnicalAnalysisChain();
-    const result = await runAnalysisWithRefinement(chain, {
-      price: currentPrice,
-      volume: volume24h,
-      priceChange: priceChange24h,
-      indicators: TECHNICAL_INDICATORS
-    });
+    console.log('Analyzing technical data:', { currentPrice, volume24h, priceChange24h });
+    const result = await runTechnicalAnalysis(currentPrice, volume24h, priceChange24h);
+    console.log('Technical analysis result:', result);
 
     return {
-      indicators: result.indicators.map((indicator: any) => ({
+      indicators: result.indicators.map(indicator => ({
         ...indicator,
         value: Number(indicator.value),
         confidence: Math.max(0, Math.min(1, indicator.confidence)),
@@ -105,11 +98,19 @@ export async function generatePredictionsWithAI(
       timestamp: Date.now()
     };
 
-    // For predictions, we'll use a simpler prompt as it's already based on analyzed data
+    console.log('Generating predictions with data:', analysisData);
     const response = await openai.invoke([
       {
         role: "system",
-        content: `You are a crypto price prediction expert. Using the provided technical and news analysis, generate a price range prediction that considers both technical factors and market sentiment. Focus on realistic ranges based on current volatility and market conditions.`
+        content: `You are a crypto price prediction expert. Using the provided technical and news analysis, generate a price range prediction that considers both technical factors and market sentiment. Focus on realistic ranges based on current volatility and market conditions.
+
+Return strict JSON in this format:
+{
+  "rangeLow": number,
+  "rangeHigh": number,
+  "confidence": number between 0-100,
+  "reasoning": string
+}`
       },
       {
         role: "user",
@@ -117,12 +118,13 @@ export async function generatePredictionsWithAI(
       }
     ]);
 
-    const prediction = JSON.parse(response.content);
+    const result = JSON.parse(response.content);
+    console.log('Prediction result:', result);
 
     return {
-      rangeLow: Math.max(0, prediction.rangeLow || 0),
-      rangeHigh: Math.max(prediction.rangeLow || 0 + 1, prediction.rangeHigh || 0),
-      confidence: Math.max(0, Math.min(100, prediction.confidence || 50)),
+      rangeLow: Math.max(0, result.rangeLow || 0),
+      rangeHigh: Math.max(result.rangeLow || 0 + 1, result.rangeHigh || 0),
+      confidence: Math.max(0, Math.min(100, result.confidence || 50)),
       timestamp: Date.now()
     };
   } catch (error) {
