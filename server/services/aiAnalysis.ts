@@ -260,7 +260,6 @@ async function analyzeTechnicalIndicatorsWithAI(
         {
           role: "system",
           content: `You are an expert crypto technical analyst. Analyze the following 8 technical indicators:
-
 ${REQUIRED_INDICATORS.map(indicator => 
   `${indicator.fullName}: ${indicator.description}`
 ).join('\n')}
@@ -357,6 +356,7 @@ Return a JSON response with:
   }
 }
 
+// Update the generatePredictionsWithAI function with a more focused prompt
 export async function generatePredictionsWithAI(
   price: number,
   technicalAnalysis: AITechnicalAnalysis,
@@ -385,47 +385,20 @@ export async function generatePredictionsWithAI(
       messages: [
         {
           role: "system",
-          content: `You are a crypto price prediction expert. 
-          
-Price Range Prediction Rules:
-1. Technical Analysis Weight (70%):
-   - Current Price is the anchor point
-   - Maximum range deviation: ±5% from current price for high confidence
-   - Maximum range deviation: ±8% from current price for medium confidence
-   - Maximum range deviation: ±12% from current price for low confidence
-          
-2. Signal Strength Impact:
-   - Strong buy signals: Push range up by 2-3%
-   - Strong sell signals: Push range down by 2-3%
-   - Mixed signals: Keep range tight (±3%)
-          
-3. Volume Confirmation:
-   - High volume confirms trend: Expand range by 1%
-   - Low volume suggests uncertainty: Contract range by 1%
-          
-4. News Impact (30%):
-   - Major positive news: +1-2% to range
-   - Major negative news: -1-2% to range
-   - News confidence below 0.5: Reduce impact by 50%
-          
-5. Confidence Calculation:
-   - Technical signal agreement: 0-40%
-   - Volume confirmation: 0-20%
-   - News impact clarity: 0-20%
-   - Market volatility adjustment: 0-20%
-          
-6. Validation Rules:
-   - rangeLow must be > currentPrice * 0.88
-   - rangeHigh must be < currentPrice * 1.12
-   - rangeLow must be < rangeHigh
-   - Confidence must be between 0-100
-          
-Return a JSON response with:
+          content: `You are a crypto price prediction expert. Analyze the data and provide a price range prediction.
+
+Guidelines:
+- Base prediction primarily on technical indicators (70% weight)
+- Consider news sentiment (30% weight)
+- Keep range within ±12% of current price
+- Adjust confidence based on signal agreement and volume
+
+Return JSON:
 {
-  "rangeLow": number,
-  "rangeHigh": number,
-  "confidence": number (0-100),
-  "explanation": string (detailed explanation of the prediction factors and reasoning)
+  "rangeLow": number,       // > currentPrice * 0.88
+  "rangeHigh": number,      // < currentPrice * 1.12
+  "confidence": number,     // 0-100
+  "explanation": string     // Brief reasoning
 }`
         },
         {
@@ -438,22 +411,13 @@ Return a JSON response with:
 
     const prediction = JSON.parse(response.choices[0].message.content);
 
-    // Validate and normalize the prediction
-    const normalizedPrediction = {
+    return {
       rangeLow: Math.max(price * 0.88, Math.min(prediction.rangeLow, price * 0.95)),
       rangeHigh: Math.max(price * 1.05, Math.min(prediction.rangeHigh, price * 1.12)),
       confidence: Math.max(0, Math.min(100, prediction.confidence)),
       timestamp: Date.now(),
       explanation: prediction.explanation || "No explanation available"
     };
-
-    // Ensure rangeLow is less than rangeHigh
-    if (normalizedPrediction.rangeLow >= normalizedPrediction.rangeHigh) {
-      normalizedPrediction.rangeLow = price * 0.97;
-      normalizedPrediction.rangeHigh = price * 1.03;
-    }
-
-    return normalizedPrediction;
 
   } catch (error) {
     console.error('AI Prediction Generation failed:', error);

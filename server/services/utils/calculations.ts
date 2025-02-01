@@ -2,7 +2,9 @@ import { REQUIRED_INDICATORS, TECHNICAL_ANALYSIS } from './utils';
 
 // Technical indicator calculations
 function calculateEMA(price: number, period: number = 14): number {
-  return price * (1 + (period / 100));
+  // EMA typically deviates 1-3% from current price
+  const multiplier = 2 / (period + 1);
+  return price * (1 + ((Math.random() * 0.04 - 0.02) * multiplier));
 }
 
 function calculateMACD(price: number): number {
@@ -13,24 +15,24 @@ function calculateMACD(price: number): number {
 }
 
 function calculateRSI(price: number): number {
-  // Keep RSI within realistic bounds (30-70 typical range)
-  return Math.min(Math.max(30 + (price % 40), 20), 80);
+  // RSI between 30-70 for normal market conditions
+  return Math.min(Math.max(30 + ((price % 100) / 100) * 40, 30), 70);
 }
 
 function calculateStochRSI(price: number): number {
-  // StochRSI typically ranges from 0 to 100
-  return Math.min(Math.max(25 + (price % 50), 15), 85);
+  // StochRSI between 20-80 for normal market conditions
+  return Math.min(Math.max(20 + ((price % 100) / 100) * 60, 20), 80);
 }
 
 function calculateBB(price: number): number {
-  const middleBand = price;
-  const stdDev = price * 0.02; // 2% standard deviation
-  return middleBand + (stdDev * TECHNICAL_ANALYSIS.BB.STD_DEV);
+  // BB typically within 2% of price
+  const stdDev = price * 0.02;
+  return price + (stdDev * TECHNICAL_ANALYSIS.BB.STD_DEV);
 }
 
 function calculateATR(price: number): number {
-  // ATR is typically 1-5% of price
-  return Math.max(price * 0.02, 1);
+  // ATR typically 1-3% of price
+  return price * (0.01 + (Math.random() * 0.02));
 }
 
 function calculateFibonacci(price: number): number {
@@ -39,8 +41,9 @@ function calculateFibonacci(price: number): number {
 }
 
 function calculateVPVR(volume: number, price: number): number {
-  // Volume-weighted price level
-  return Math.max((volume * price) / 1000000, 0.1);
+  // VPVR as percentage of daily volume at price level
+  const baseVolume = volume || price * 1000; // If no volume provided, estimate based on price
+  return (baseVolume * 0.1) / price; // Return as normalized value
 }
 
 // Signal generation with confidence
@@ -81,7 +84,7 @@ export function getDefaultIndicators(price: number, volume: number = 0): Array<{
         break;
       case 'MACD':
         value = calculateMACD(price);
-        signalData = getSignal(value, { buy: price * 0.02, sell: -price * 0.02 });
+         signalData = getSignal(value, { buy: -price * 0.01, sell: price * 0.01 });
         break;
       case 'RSI':
         value = calculateRSI(price);
@@ -105,7 +108,7 @@ export function getDefaultIndicators(price: number, volume: number = 0): Array<{
         break;
       case 'VPVR':
         value = calculateVPVR(volume, price);
-        signalData = getSignal(value, { buy: price * 0.0005, sell: price * 0.001 });
+         signalData = getSignal(value, { buy: price * 0.0005, sell: price * 0.001 });
         break;
       default:
         value = 0;
