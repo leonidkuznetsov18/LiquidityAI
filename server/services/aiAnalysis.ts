@@ -135,41 +135,45 @@ export async function generatePredictionsWithAI(
       throw new Error('Invalid or missing OpenAI API key');
     }
 
-    const predictionPrompt = PromptTemplate.fromTemplate(`
-System: You are a crypto price prediction expert. You must return only valid JSON without any explanation text.
-Human: Based on the following data, generate a price prediction:
-Current Price: {price}
-Technical Analysis: {technical}
-News Analysis: {news}
+    const prompt = `Generate crypto price prediction based on:
+Current price: ${price}
+Technical indicators: ${JSON.stringify(technicalAnalysis.indicators.map(i => ({ name: i.name, signal: i.signal, confidence: i.confidence })))}
+Price sentiment: ${technicalAnalysis.overallSentiment}
+News sentiment: ${newsAnalysis.sentiment} (confidence: ${newsAnalysis.confidence})
+Impact: Short-term ${newsAnalysis.impact.shortTerm}, Long-term ${newsAnalysis.impact.longTerm}
 
-Return a JSON object with exactly these fields and nothing else:
+Respond with ONLY a JSON object containing:
 {
-  "rangeLow": number (minimum predicted price),
-  "rangeHigh": number (maximum predicted price),
-  "confidence": number (between 0-100),
-  "reasoning": string (brief explanation)
-}`);
+  "rangeLow": [minimum price],
+  "rangeHigh": [maximum price],
+  "confidence": [0-100],
+  "reasoning": [brief explanation]
+}`;
 
-    const chain = RunnableSequence.from([
-      predictionPrompt,
-      openai,
-      new JsonOutputParser()
-    ]);
+    console.log('Generating prediction with prompt:', prompt);
 
-    console.log('Generating prediction with data:', {
-      price,
-      technical: JSON.stringify(technicalAnalysis),
-      news: JSON.stringify(newsAnalysis)
-    });
+    const response = await openai.invoke([prompt]);
+    console.log('Raw AI response:', response);
 
-    const result = await chain.invoke({
-      price: price.toString(),
-      technical: JSON.stringify(technicalAnalysis),
-      news: JSON.stringify(newsAnalysis)
-    });
+    if (!response.content || typeof response.content !== 'string') {
+      throw new Error('Invalid response format from OpenAI');
+    }
 
-    console.log('Raw prediction result:', result);
-    const prediction = predictionSchema.parse(result);
+    let jsonResponse: any;
+    try {
+      jsonResponse = JSON.parse(response.content);
+    } catch (error) {
+      console.error('JSON parsing error:', error);
+      // Fallback to conservative prediction
+      return {
+        rangeLow: price * 0.95,
+        rangeHigh: price * 1.05,
+        confidence: 50,
+        timestamp: Date.now()
+      };
+    }
+
+    const prediction = predictionSchema.parse(jsonResponse);
     console.log('Parsed prediction:', prediction);
 
     return {
