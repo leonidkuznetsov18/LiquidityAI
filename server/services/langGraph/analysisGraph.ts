@@ -7,6 +7,7 @@ import {
   SystemMessagePromptTemplate,
   HumanMessagePromptTemplate 
 } from "@langchain/core/prompts";
+import { getDefaultIndicators, calculateOverallSentiment, getMarketTrend } from '../utils/calculations';
 
 // Initialize OpenAI chat model
 const model = new ChatOpenAI({
@@ -58,18 +59,24 @@ Return a JSON response with:
 - reasoning: explanation string`;
 
 const systemPromptTechnical = `You are an expert crypto technical analyst.
-Analyze the market data provided to generate insights.
+Analyze the market data and technical indicators provided.
 
-Input Data:
-Current Price: {price}
-24h Volume: {volume}
-Price Change: {change}
+Key Indicators Analyzed:
+- EMA (Exponential Moving Average)
+- MACD (Moving Average Convergence Divergence)
+- RSI (Relative Strength Index)
+- Stochastic RSI
+- Bollinger Bands (BB)
+- ATR (Average True Range)
+- Fibonacci Retracement
+- VPVR (Volume Profile Visible Range)
 
 Return a JSON response with:
-- indicators: array of analysis objects
-- overallSentiment: number from -1 to 1
-- priceRange: object with low and high predictions
-Each indicator should have: name, value, signal, confidence, description`;
+- indicators: array of the above indicators with values
+- marketTrend: current market trend analysis
+- overallSentiment: weighted sentiment score
+- volumeAnalysis: volume-based analysis
+- priceRange: predicted range with confidence`;
 
 // Create prompt templates
 const newsAnalysisPrompt = ChatPromptTemplate.fromMessages([
@@ -119,13 +126,41 @@ export async function runNewsAnalysis(headlines: string): Promise<any> {
 
 export async function runTechnicalAnalysis(price: number, volume: number, priceChange: number): Promise<any> {
   try {
-    const chain = createTechnicalAnalysisChain();
-    const result = await chain.invoke({
+    // Get technical indicators
+    const indicators = getDefaultIndicators(price, volume);
+
+    // Calculate overall sentiment ensuring it's never 0
+    const sentiment = calculateOverallSentiment(price, volume);
+
+    // Get market trend
+    const ema = indicators.find(i => i.name === 'EMA (14)')?.value || 0;
+    const rsi = indicators.find(i => i.name === 'RSI')?.value || 0;
+    const macd = indicators.find(i => i.name === 'MACD')?.value || 0;
+    const trend = getMarketTrend(price, ema, rsi, macd);
+
+    // Prepare enhanced analysis data
+    const analysisData = {
       price: price.toString(),
       volume: volume.toString(),
-      change: priceChange.toString()
-    });
-    return result;
+      change: priceChange.toString(),
+      indicators: indicators,
+      marketTrend: trend,
+      overallSentiment: sentiment
+    };
+
+    const chain = createTechnicalAnalysisChain();
+    const result = await chain.invoke(analysisData);
+
+    // Ensure the sentiment is never 0 in the final result
+    if (result.overallSentiment === 0) {
+      result.overallSentiment = sentiment;
+    }
+
+    return {
+      ...result,
+      marketTrend: trend,
+      indicators: indicators
+    };
   } catch (error) {
     console.error('Technical analysis chain failed:', error);
     throw error;

@@ -1,5 +1,4 @@
 // Common utility functions for technical analysis calculations
-
 export function calculateEMA(price: number, period: number): number {
   return price * 0.95; // Simplified EMA calculation
 }
@@ -32,13 +31,28 @@ export function calculateVPVR(volume: number, price: number): number {
   return (volume * price) / 1000000; // Simplified VPVR calculation
 }
 
+// Trend analysis
+export function getMarketTrend(price: number, ema: number, rsi: number, macd: number): 'bullish' | 'bearish' | 'sideways' {
+  const trendScore = [
+    price > ema ? 1 : -1, // Price above EMA is bullish
+    rsi > 50 ? 1 : -1, // RSI above 50 is bullish
+    macd > 0 ? 1 : -1 // Positive MACD is bullish
+  ].reduce((sum, score) => sum + score, 0);
+
+  if (trendScore > 1) return 'bullish';
+  if (trendScore < -1) return 'bearish';
+  return 'sideways';
+}
+
 // Signal generation functions
 export function getEMASignal(price: number, period: number): 'buy' | 'sell' | 'neutral' {
-  return price > period * 100 ? 'buy' : price < period * 50 ? 'sell' : 'neutral';
+  const ema = calculateEMA(price, period);
+  return price > ema ? 'buy' : price < ema ? 'sell' : 'neutral';
 }
 
 export function getMACDSignal(price: number): 'buy' | 'sell' | 'neutral' {
-  return price > 2000 ? 'buy' : price < 1500 ? 'sell' : 'neutral';
+  const macd = calculateMACD(price);
+  return macd > 0 ? 'buy' : macd < 0 ? 'sell' : 'neutral';
 }
 
 export function getRSISignal(price: number): 'buy' | 'sell' | 'neutral' {
@@ -52,15 +66,18 @@ export function getStochRSISignal(price: number): 'buy' | 'sell' | 'neutral' {
 }
 
 export function getBBSignal(price: number): 'buy' | 'sell' | 'neutral' {
-  return price > 2200 ? 'sell' : price < 1800 ? 'buy' : 'neutral';
+  const bb = calculateBB(price);
+  return price > bb ? 'sell' : price < bb ? 'buy' : 'neutral';
 }
 
 export function getATRSignal(price: number): 'buy' | 'sell' | 'neutral' {
-  return price > 2100 ? 'sell' : price < 1900 ? 'buy' : 'neutral';
+  const atr = calculateATR(price);
+  return price > atr * 1.5 ? 'sell' : price < atr * 0.5 ? 'buy' : 'neutral';
 }
 
 export function getFibonacciSignal(price: number): 'buy' | 'sell' | 'neutral' {
-  return price > 2300 ? 'sell' : price < 1700 ? 'buy' : 'neutral';
+  const fib = calculateFibonacci(price);
+  return price > fib * 1.5 ? 'sell' : price < fib * 0.5 ? 'buy' : 'neutral';
 }
 
 export function getVPVRSignal(volume: number, price: number): 'buy' | 'sell' | 'neutral' {
@@ -68,25 +85,61 @@ export function getVPVRSignal(volume: number, price: number): 'buy' | 'sell' | '
   return vpvr > 1000 ? 'buy' : vpvr < 500 ? 'sell' : 'neutral';
 }
 
+// Calculate overall sentiment based on all indicators
+export function calculateOverallSentiment(price: number, volume: number): number {
+  // Get all signals
+  const signals = [
+    getEMASignal(price, 14),
+    getMACDSignal(price),
+    getRSISignal(price),
+    getStochRSISignal(price),
+    getBBSignal(price),
+    getATRSignal(price),
+    getFibonacciSignal(price),
+    getVPVRSignal(volume, price)
+  ];
+
+  // Convert signals to numeric values
+  const numericSignals = signals.map(signal => {
+    switch (signal) {
+      case 'buy': return 1;
+      case 'sell': return -1;
+      default: return 0.1; // Neutral signals contribute a small positive bias
+    }
+  });
+
+  // Calculate weighted average
+  const sum = numericSignals.reduce((acc, val) => acc + val, 0);
+  const baseScore = sum / numericSignals.length;
+
+  // Normalize to [-0.9, 0.9] range and ensure never exactly 0
+  const normalizedScore = Math.max(-0.9, Math.min(0.9, baseScore));
+  return normalizedScore === 0 ? 0.1 : normalizedScore;
+}
+
 export function getDefaultIndicators(price: number, volume?: number) {
+  const ema14 = calculateEMA(price, 14);
+  const macd = calculateMACD(price);
+  const rsi = calculateRSI(price);
+
   return [
     {
       name: 'EMA (14)',
-      value: calculateEMA(price, 14),
+      value: ema14,
       signal: getEMASignal(price, 14),
       description: 'Exponential Moving Average gives more weight to recent prices, making it more responsive to new information.',
       learnMoreUrl: 'https://www.investopedia.com/terms/e/ema.asp'
     },
     {
       name: 'MACD',
-      value: calculateMACD(price),
+      value: macd,
       signal: getMACDSignal(price),
       description: 'Moving Average Convergence Divergence shows the relationship between two moving averages of an asset\'s price.',
       learnMoreUrl: 'https://www.investopedia.com/terms/m/macd.asp'
     },
     {
       name: 'RSI',
-      value: calculateRSI(price),
+      value: rsi,
       signal: getRSISignal(price),
       description: 'Relative Strength Index measures the speed and magnitude of recent price changes to evaluate overbought or oversold conditions.',
       learnMoreUrl: 'https://www.investopedia.com/terms/r/rsi.asp'
