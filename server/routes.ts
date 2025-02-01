@@ -50,7 +50,7 @@ export function registerRoutes(app: Express): Server {
         []
       );
 
-      if (!aiAnalysis) {
+      if (!aiAnalysis || !aiAnalysis.indicators) {
         throw new Error('Failed to generate AI technical analysis');
       }
 
@@ -66,18 +66,18 @@ export function registerRoutes(app: Express): Server {
           sell: ethData.volume_24h * (ethData.price_change_24h > 0 ? 0.4 : 0.6),
         },
         indicators: aiAnalysis.indicators,
-        sentiment: aiAnalysis.overallSentiment,
+        sentiment: aiAnalysis.overallSentiment || 0.01, // Ensure non-zero sentiment
       });
     } catch (error) {
       console.error('Market data error:', error);
       res.status(500).json({ 
         error: 'Failed to fetch market data',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
 
-  // Predictions API - Using AI predictions only
+  // Predictions API
   app.get('/api/predictions', async (_req, res) => {
     try {
       const ethData = await getEthereumData();
@@ -88,6 +88,7 @@ export function registerRoutes(app: Express): Server {
         []
       );
 
+      // Ensure technical analysis exists
       if (!technicalAnalysis) {
         throw new Error('Failed to generate technical analysis');
       }
@@ -95,7 +96,8 @@ export function registerRoutes(app: Express): Server {
       const newsData = await getCryptoNews();
       const newsAnalysis = await analyzeNewsWithAI(newsData.news.headlines);
 
-      if (!newsAnalysis) {
+      // Ensure news analysis exists and has required properties
+      if (!newsAnalysis || !newsAnalysis.impact) {
         throw new Error('Failed to analyze news data');
       }
 
@@ -109,24 +111,27 @@ export function registerRoutes(app: Express): Server {
         throw new Error('Failed to generate predictions');
       }
 
-      res.json({
+      // Construct response with null checks
+      const response = {
         ...predictions,
         technicalAnalysis: {
-          sentiment: technicalAnalysis.overallSentiment,
+          sentiment: technicalAnalysis.overallSentiment || 0.01,
           marketTrend: technicalAnalysis.indicators[0]?.signal || 'neutral',
-          confidence: technicalAnalysis.priceRange.confidence
+          confidence: technicalAnalysis.priceRange?.confidence || 0.5
         },
         newsImpact: {
-          sentiment: newsAnalysis.sentiment,
-          shortTerm: newsAnalysis.impact.shortTerm,
-          longTerm: newsAnalysis.impact.longTerm
+          sentiment: newsAnalysis.sentiment || 'neutral',
+          shortTerm: newsAnalysis.impact?.shortTerm || 0.5,
+          longTerm: newsAnalysis.impact?.longTerm || 0.5
         }
-      });
+      };
+
+      res.json(response);
     } catch (error) {
       console.error('Prediction error:', error);
       res.status(500).json({ 
         error: 'Failed to generate predictions',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
@@ -137,23 +142,26 @@ export function registerRoutes(app: Express): Server {
       const newsData = await getCryptoNews();
       const aiSentiment = await analyzeNewsWithAI(newsData.news.headlines);
 
-      if (!aiSentiment) {
+      if (!aiSentiment || !aiSentiment.impact) {
         throw new Error('Failed to analyze sentiment');
       }
 
       res.json({
         news: {
           headlines: newsData.news.headlines,
-          score: aiSentiment.score,
-          sentiment: aiSentiment.sentiment,
-          impact: aiSentiment.impact
+          score: aiSentiment.score || 0.5,
+          sentiment: aiSentiment.sentiment || 'neutral',
+          impact: {
+            shortTerm: aiSentiment.impact.shortTerm || 0.5,
+            longTerm: aiSentiment.impact.longTerm || 0.5
+          }
         }
       });
     } catch (error) {
       console.error('Sentiment analysis error:', error);
       res.status(500).json({ 
         error: 'Failed to fetch sentiment data',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });

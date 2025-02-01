@@ -71,11 +71,15 @@ export async function analyzeNewsWithAI(headlines: NewsItem[]): Promise<AINewsAn
     const result = await runNewsAnalysis(JSON.stringify(headlines));
     console.log('News analysis result:', result);
 
+    // Ensure we have a valid response structure
     return {
-      sentiment: result.sentiment,
-      score: result.score,
-      confidence: result.confidence,
-      impact: result.impact
+      sentiment: result.sentiment || 'neutral',
+      score: Math.max(0.01, result.score || 0.5),
+      confidence: Math.max(0.01, result.confidence || 0.5),
+      impact: {
+        shortTerm: Math.max(0.01, result.impact?.shortTerm || 0.5),
+        longTerm: Math.max(0.01, result.impact?.longTerm || 0.5)
+      }
     };
   } catch (error) {
     console.error('AI News Analysis failed:', error);
@@ -98,17 +102,15 @@ export async function analyzeTechnicalIndicatorsWithAI(
     const result = await runTechnicalAnalysis(currentPrice, volume24h, priceChange24h);
     console.log('Technical analysis result:', result);
 
-    // Ensure sentiment is never 0
-    const sentiment = result.overallSentiment === 0 ? 0.01 : result.overallSentiment;
-
+    // Ensure we have valid indicators and non-zero sentiment
     return {
       indicators: result.indicators.map(indicator => ({
         ...indicator,
-        value: Number(indicator.value),
+        value: Number(indicator.value || 0),
         confidence: Math.max(0.01, Math.min(1, indicator.confidence || 0.5)),
-        signal: indicator.signal.toLowerCase()
+        signal: indicator.signal?.toLowerCase() || 'neutral'
       })),
-      overallSentiment: sentiment,
+      overallSentiment: result.overallSentiment === 0 ? 0.01 : (result.overallSentiment || 0.01),
       priceRange: {
         low: Math.max(0, result.priceRange?.low || currentPrice * 0.95),
         high: Math.max(result.priceRange?.low || currentPrice, result.priceRange?.high || currentPrice * 1.05),
