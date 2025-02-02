@@ -11,7 +11,9 @@ import { formatDistanceToNow } from "date-fns";
 import { RefreshCw } from "lucide-react";
 import PredictionExplanationDialog from "@/components/analysis/PredictionExplanationDialog";
 import { useSentiment } from "@/hooks/useSentiment";
-import ConnectButton from "@/components/web3/ConnectButton.tsx";
+import ConnectButton from "@/components/web3/ConnectButton";
+import { DepositWithdraw } from "@/components/DepositWithdraw";
+import { useAccount } from "@/contexts/AccountContext";
 
 export default function Dashboard() {
   const {
@@ -25,12 +27,13 @@ export default function Dashboard() {
     isRefetching,
   } = usePredictions();
 
-  const { refetch: refetchSantiment } = useSentiment();
+  const { refetch: refetchSentiment } = useSentiment();
+  const { address } = useAccount();
 
   const handleRefresh = () => {
     refetchMarket();
     refetchPredictions();
-    refetchSantiment();
+    refetchSentiment();
   };
 
   return (
@@ -102,6 +105,14 @@ export default function Dashboard() {
           <Card className="p-4">
             <RangeAdjuster predictions={predictions} />
           </Card>
+
+          {/* Show Deposit/Withdraw section only when wallet is connected */}
+          {address && (
+            <Card className="col-span-full p-4">
+              <h2 className="text-lg font-semibold mb-4">Deposit & Withdraw</h2>
+              <DepositWithdraw />
+            </Card>
+          )}
         </div>
       </main>
     </div>
