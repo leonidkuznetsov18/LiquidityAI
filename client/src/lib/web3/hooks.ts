@@ -75,26 +75,33 @@ export function useContractBalances(account: string | null) {
 export function useStrategyContract(account: string | null) {
   const approveAndDeposit = useCallback(
     async (amount: string) => {
+      console.log('amount', amount)
+      console.log('account', account)
       if (!account) throw new Error('Wallet not connected');
 
       const provider = getBscProvider();
       const signer = await provider.getSigner(account);
-
+      console.log('signer', signer)
       const usdcContract = getUsdcContract(signer);
+      console.log('usdcContract', usdcContract)
       const strategyContract = getStrategyContract(signer);
+      console.log('strategyContract', strategyContract)
 
       // Parse amount with proper decimals
       const parsedAmount = await parseTokenAmount(amount, usdcContract);
+      console.log('parsedAmount', parsedAmount)
 
       // Approve USDC spending
       const approvalTx = await usdcContract.approve(
         CONTRACTS.STRATEGY.address,
         ethers.MaxUint256
       );
+      console.log('approvalTx', approvalTx)
       await approvalTx.wait();
 
       // Deposit into strategy
       const depositTx = await strategyContract.deposit(parsedAmount);
+      console.log('depositTx', depositTx)
       await depositTx.wait();
     },
     [account]
