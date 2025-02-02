@@ -95,7 +95,7 @@ export default function TechnicalIndicators({ data, isLoading }: Props) {
         {data?.indicators.map((indicator) => (
           <div
             key={indicator.name}
-            className="flex items-center justify-between p-3 bg-card rounded-lg"
+            className="flex items-center justify-between p-3 bg-card rounded-lg hover:bg-accent/50 transition-colors"
           >
             <div className="flex items-center gap-2">
               <span className="font-medium">{indicator.name}</span>
@@ -106,8 +106,8 @@ export default function TechnicalIndicators({ data, isLoading }: Props) {
                       <InfoIcon className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    <div className="max-w-xs">
+                  <TooltipContent side="right" align="start">
+                    <div className="max-w-xs space-y-2">
                       <p className="text-sm">{indicator.description}</p>
                       <a
                         href={indicator.learnMoreUrl}
@@ -122,9 +122,20 @@ export default function TechnicalIndicators({ data, isLoading }: Props) {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono">{indicator.value.toFixed(2)}</span>
-              {getSignalIcon(indicator.signal)}
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-sm">{indicator.value.toFixed(2)}</span>
+              <div className="w-20 flex justify-end">
+                <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                  indicator.signal === 'buy' 
+                    ? 'bg-green-500/10 text-green-500'
+                    : indicator.signal === 'sell'
+                    ? 'bg-red-500/10 text-red-500'
+                    : 'bg-yellow-500/10 text-yellow-500'
+                }`}>
+                  {getSignalIcon(indicator.signal)}
+                  <span>{indicator.signal.toUpperCase()}</span>
+                </div>
+              </div>
             </div>
           </div>
         ))}

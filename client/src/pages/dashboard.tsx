@@ -94,6 +94,21 @@ export default function Dashboard() {
             )}
           </Card>
 
+          {/* Deposit & Withdraw section */}
+          <Card className="p-4">
+            <h2 className="text-lg font-semibold mb-4">Deposit & Withdraw</h2>
+            {address ? (
+              <DepositWithdraw />
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">
+                  Connect your wallet to deposit or withdraw funds
+                </p>
+                <ConnectButton />
+              </div>
+            )}
+          </Card>
+
           <Card className="p-4">
             <TechnicalIndicators data={marketData} isLoading={marketLoading} />
           </Card>
@@ -105,14 +120,6 @@ export default function Dashboard() {
           <Card className="p-4">
             <RangeAdjuster predictions={predictions} />
           </Card>
-
-          {/* Show Deposit/Withdraw section only when wallet is connected */}
-          {address && (
-            <Card className="col-span-full p-4">
-              <h2 className="text-lg font-semibold mb-4">Deposit & Withdraw</h2>
-              <DepositWithdraw />
-            </Card>
-          )}
         </div>
       </main>
     </div>
