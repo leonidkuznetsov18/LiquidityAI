@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
-import { getEthereumData, getCryptoNews } from './services/crypto';
+import { getCoinData, getCryptoNews } from './services/crypto';
 import { analyzeNewsWithAI, analyzeTechnicalIndicatorsWithAI, generatePredictionsWithAI } from './services/aiAnalysis';
 
 export function registerRoutes(app: Express): Server {
@@ -21,7 +21,7 @@ export function registerRoutes(app: Express): Server {
     const interval = setInterval(async () => {
       if (ws.readyState === WebSocket.OPEN) {
         try {
-          const data = await getEthereumData();
+          const data = await getCoinData();
           ws.send(JSON.stringify({
             price: data.price,
             volume: data.volume_24h,
@@ -42,11 +42,11 @@ export function registerRoutes(app: Express): Server {
   // Technical Analysis API
   app.get('/api/market-data', async (_req, res) => {
     try {
-      const ethData = await getEthereumData();
+      const coinData = await getCoinData();
       const aiAnalysis = await analyzeTechnicalIndicatorsWithAI(
-        ethData.price,
-        ethData.volume_24h,
-        ethData.price_change_24h,
+        coinData.price,
+        coinData.volume_24h,
+        coinData.price_change_24h,
         []
       );
 
@@ -56,14 +56,14 @@ export function registerRoutes(app: Express): Server {
 
       res.json({
         price24h: {
-          current: ethData.price,
-          change: ethData.price_change_24h,
-          changePercentage: (ethData.price_change_24h / ethData.price) * 100,
+          current: coinData.price,
+          change: coinData.price_change_24h,
+          changePercentage: (coinData.price_change_24h / coinData.price) * 100,
         },
         volume24h: {
-          total: ethData.volume_24h,
-          buy: ethData.volume_24h * (ethData.price_change_24h > 0 ? 0.6 : 0.4),
-          sell: ethData.volume_24h * (ethData.price_change_24h > 0 ? 0.4 : 0.6),
+          total: coinData.volume_24h,
+          buy: coinData.volume_24h * (coinData.price_change_24h > 0 ? 0.6 : 0.4),
+          sell: coinData.volume_24h * (coinData.price_change_24h > 0 ? 0.4 : 0.6),
         },
         indicators: aiAnalysis.indicators,
         sentiment: aiAnalysis.overallSentiment,
@@ -80,11 +80,11 @@ export function registerRoutes(app: Express): Server {
   // Predictions API - Using AI predictions only
   app.get('/api/predictions', async (_req, res) => {
     try {
-      const ethData = await getEthereumData();
+      const coinData = await getCoinData();
       const technicalAnalysis = await analyzeTechnicalIndicatorsWithAI(
-        ethData.price,
-        ethData.volume_24h,
-        ethData.price_change_24h,
+        coinData.price,
+        coinData.volume_24h,
+        coinData.price_change_24h,
         []
       );
 
@@ -92,7 +92,7 @@ export function registerRoutes(app: Express): Server {
       const newsAnalysis = await analyzeNewsWithAI(newsData.news.headlines);
 
       const predictions = await generatePredictionsWithAI(
-        ethData.price,
+        coinData.price,
         technicalAnalysis,
         newsAnalysis
       );

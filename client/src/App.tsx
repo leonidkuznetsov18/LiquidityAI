@@ -42,10 +42,10 @@ function App() {
           onReset={reset}
           FallbackComponent={ErrorFallback}
         >
-            <AccountProvider>
-              <Router />
-              <Toaster />
-            </AccountProvider>
+          <AccountProvider>
+            <Router />
+            <Toaster />
+          </AccountProvider>
         </ErrorBoundary>
       )}
     </QueryErrorResetBoundary>

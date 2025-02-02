@@ -10,11 +10,12 @@ interface Props {
     confidence: number;
   };
 }
-
+const MIN_PRICE = 200;
+const MAX_PRICE = 800;
 export default function RangeAdjuster({ predictions }: Props) {
   const [range, setRange] = useState<[number, number]>([
-    predictions?.rangeLow || 1800,
-    predictions?.rangeHigh || 2200,
+    predictions?.rangeLow || MIN_PRICE,
+    predictions?.rangeHigh || MAX_PRICE,
   ]);
 
   useEffect(() => {
@@ -29,8 +30,8 @@ export default function RangeAdjuster({ predictions }: Props) {
     }
   };
 
-  const minPrice = predictions ? Math.floor(predictions.rangeLow * 0.8) : 1500;
-  const maxPrice = predictions ? Math.ceil(predictions.rangeHigh * 1.2) : 2500;
+  const minPrice = predictions ? Math.floor(predictions.rangeLow * 0.8) : MIN_PRICE;
+  const maxPrice = predictions ? Math.ceil(predictions.rangeHigh * 1.2) : MAX_PRICE;
 
   return (
     <div className="space-y-6">

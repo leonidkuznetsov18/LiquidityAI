@@ -16,8 +16,8 @@ export interface CryptoData {
   volume_sell_24h?: number;
 }
 
-export async function getEthereumData(): Promise<CryptoData> {
-  const cacheKey = 'ethereum_data';
+export async function getCoinData(): Promise<CryptoData> {
+  const cacheKey = 'coin_data';
   const cachedData = cache.get<CryptoData>(cacheKey);
 
   if (cachedData) {
@@ -26,10 +26,10 @@ export async function getEthereumData(): Promise<CryptoData> {
 
   try {
     const response = await axios.get(
-      `${COINGECKO_BASE_URL}/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true`
+      `${COINGECKO_BASE_URL}/simple/price?ids=binancecoin&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true`
     );
-
-    const data = response.data.ethereum;
+console.log('response', response.data)
+    const data = response.data.binancecoin;
     const result: CryptoData = {
       price: data.usd,
       volume_24h: data.usd_24h_vol,
@@ -40,13 +40,13 @@ export async function getEthereumData(): Promise<CryptoData> {
     cache.set(cacheKey, result);
     return result;
   } catch (error) {
-    console.error('Error fetching Ethereum data:', error);
+    console.error('Error fetching BNB data:', error);
     throw error;
   }
 }
 
 export async function getTechnicalIndicators() {
-  const data = await getEthereumData();
+  const data = await getCoinData();
   const priceChange = data.price_change_24h;
   const volume = data.volume_24h;
 
@@ -75,8 +75,10 @@ export async function getCryptoNews(): Promise<NewsData> {
 
   try {
     const response = await axios.get(
-      `${CRYPTOCOMPARE_BASE_URL}/news/?lang=EN&categories=ETH`
+      `${CRYPTOCOMPARE_BASE_URL}/news/?lang=EN&categories=BNB,BUSINESS,TRADING,MARKET&limit=50`
     );
+
+    console.log('getCryptoNews response', response.data.Data)
 
     const newsItems = response.data.Data
       .slice(0, 5)
@@ -156,7 +158,7 @@ function calculateOverallSentiment(headlines: NewsItem[]): number {
 }
 
 export async function generatePredictions() {
-  const data = await getEthereumData();
+  const data = await getCoinData();
 
   // Calculate indicators using manual methods
   const { indicators } = await getTechnicalIndicators();

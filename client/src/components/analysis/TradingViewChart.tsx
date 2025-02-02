@@ -17,7 +17,7 @@ export default function TradingViewChart() {
       if (containerRef.current && window.TradingView) {
         new window.TradingView.widget({
           container_id: containerRef.current.id,
-          symbol: 'BINANCE:ETHUSDC', // Updated to use Binance's ETH/USDC pair
+          symbol: 'BINANCE:BNBUSDC', // Updated to use Binance's BNB/USDC pair
           interval: '30',
           timezone: 'Etc/UTC',
           theme: 'dark',

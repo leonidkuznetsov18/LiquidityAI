@@ -43,7 +43,7 @@ export default function Dashboard() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="col-span-2 p-4">
-            <h2 className="text-lg font-semibold mb-4">ETH/USDC Price Chart</h2>
+            <h2 className="text-lg font-semibold mb-4">BNB/USDC Price Chart</h2>
             <TradingViewChart />
           </Card>
 
