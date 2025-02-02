@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useUSDCBalance, useStrategyContract } from '@/lib/web3/hooks';
 import { CONTRACT_METADATA } from '@/lib/web3/constants';
-import { useAccount } from '@/hooks/useAccount';
+import { useAccount } from '@/contexts/AccountContext';
 
 export function DepositWithdraw() {
   const { address } = useAccount();
