@@ -3,13 +3,27 @@ import { CONTRACTS } from './constants';
 
 // BSC mainnet provider singleton
 export function getBscProvider() {
-  return new ethers.JsonRpcProvider('https://bsc-dataseed.binance.org/');
+  return new ethers.JsonRpcProvider('https://rpc.ankr.com/bsc');
+}
+
+// Get wallet provider and signer
+export async function getWalletProvider() {
+  if (!window.ethereum) throw new Error('MetaMask not installed');
+
+  // Create Web3Provider from MetaMask
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  return provider;
+}
+
+export async function getWalletSigner() {
+  const provider = await getWalletProvider();
+  return await provider.getSigner();
 }
 
 // Contract factory function
 export function createContract(
   address: string,
-  abi: string[],
+  abi: any[],
   signerOrProvider: ethers.Provider | ethers.Signer
 ): Contract {
   return new ethers.Contract(address, abi, signerOrProvider);
