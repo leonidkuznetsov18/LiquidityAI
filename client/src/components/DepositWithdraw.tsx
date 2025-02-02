@@ -3,13 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useUSDCBalance, useStrategyContract } from '@/lib/web3/hooks';
+import { useUSDCBalance, useStrategyContract, useContractBalances } from '@/lib/web3/hooks';
 import { CONTRACT_METADATA } from '@/lib/web3/constants';
 import { useAccount } from '@/contexts/AccountContext';
 
 export function DepositWithdraw() {
   const { address } = useAccount();
   const { balance, loading: balanceLoading } = useUSDCBalance(address);
+  const { userBalance, totalSupply, loading: contractLoading } = useContractBalances(address);
   const { approveAndDeposit, requestWithdrawal } = useStrategyContract(address);
   const [amount, setAmount] = useState('');
   const [isDepositing, setIsDepositing] = useState(true);
@@ -24,6 +25,11 @@ export function DepositWithdraw() {
 
     if (Number(amount) > Number(balance) && isDepositing) {
       toast({ title: 'Insufficient USDC balance', variant: 'destructive' });
+      return;
+    }
+
+    if (!isDepositing && Number(amount) > Number(userBalance)) {
+      toast({ title: 'Insufficient contract balance', variant: 'destructive' });
       return;
     }
 
@@ -49,7 +55,7 @@ export function DepositWithdraw() {
   };
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4">
       <div className="flex gap-2">
         <Button
           variant={isDepositing ? 'default' : 'outline'}
@@ -70,9 +76,10 @@ export function DepositWithdraw() {
           <h3 className="text-lg font-medium">
             {isDepositing ? 'Deposit USDC' : 'Withdraw USDC'}
           </h3>
-          <p className="text-sm text-gray-500">
-            Balance: {balanceLoading ? '...' : `${Number(balance).toFixed(2)} USDC`}
-          </p>
+          <div className="text-sm text-gray-500 space-y-1">
+            <p>Wallet Balance: {balanceLoading ? '...' : `${Number(balance).toFixed(2)} USDC`}</p>
+            <p>Your Contract Balance: {contractLoading ? '...' : `${Number(userBalance).toFixed(2)} USDC`}</p>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -82,11 +89,17 @@ export function DepositWithdraw() {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             min="0"
-            max={isDepositing ? balance : undefined}
+            max={isDepositing ? balance : userBalance}
           />
           <Button
             onClick={handleAction}
-            disabled={processing || !amount || Number(amount) <= 0}
+            disabled={
+              processing || 
+              !amount || 
+              Number(amount) <= 0 || 
+              (isDepositing && Number(amount) > Number(balance)) ||
+              (!isDepositing && Number(amount) > Number(userBalance))
+            }
             className="w-full"
           >
             {processing ? 'Processing...' : isDepositing ? 'Deposit' : 'Request Withdrawal'}
@@ -101,7 +114,8 @@ export function DepositWithdraw() {
           <div className="text-sm space-y-1">
             <p>Pair: {meta.pair}</p>
             <p>Pool Service: {meta.poolService}</p>
-            <p>Address: {meta.address}</p>
+            <p className="font-mono">Address: {meta.address}</p>
+            <p>Total Pool Balance: {contractLoading ? '...' : `${Number(totalSupply).toFixed(2)} USDC`}</p>
           </div>
         </Card>
       ))}

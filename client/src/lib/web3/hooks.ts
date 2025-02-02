@@ -36,6 +36,42 @@ export function useUSDCBalance(account: string | null) {
   return { balance, loading };
 }
 
+export function useContractBalances(account: string | null) {
+  const [userBalance, setUserBalance] = useState<string>('0');
+  const [totalSupply, setTotalSupply] = useState<string>('0');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchBalances = async () => {
+      try {
+        setLoading(true);
+        const contract = getStrategyContract();
+        const usdcContract = getUsdcContract();
+
+        // Get total supply
+        const rawTotalSupply = await contract.totalSupply();
+        const formattedTotalSupply = await formatTokenAmount(rawTotalSupply, usdcContract);
+        setTotalSupply(formattedTotalSupply);
+
+        // Get user balance if account exists
+        if (account) {
+          const rawUserBalance = await contract.balanceOf(account);
+          const formattedUserBalance = await formatTokenAmount(rawUserBalance, usdcContract);
+          setUserBalance(formattedUserBalance);
+        }
+      } catch (err) {
+        console.error('Failed to fetch contract balances:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBalances();
+  }, [account]);
+
+  return { userBalance, totalSupply, loading };
+}
+
 export function useStrategyContract(account: string | null) {
   const approveAndDeposit = useCallback(
     async (amount: string) => {
