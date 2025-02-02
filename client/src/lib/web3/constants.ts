@@ -8,7 +8,7 @@ export const CONTRACTS = {
     ]
   },
   STRATEGY: {
-    address: '0x1234567890123456789012345678901234567890',
+    address: '0xf065a7095C9b1AF2DEbFE07e6Bdd46EACC2c6670',
     abi:  [
         {
           "anonymous": false,
@@ -639,7 +639,8 @@ export const CONTRACT_METADATA = {
     name: 'RWBNB-USDC',
     pair: 'WBNB-USDC',
     poolService: 'PancakeSwap',
-    address: CONTRACTS.STRATEGY.address
+    address: CONTRACTS.STRATEGY.address,
+    poolAddress: "0xf2688Fb5B81049DFB7703aDa5e770543770612C4"
   }
 };
 

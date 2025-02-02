@@ -50,7 +50,8 @@ export default function Dashboard() {
             <TradingViewChart />
           </Card>
 
-          <Card className="p-4">
+          <div className="flex flex-col gap-4">
+          <Card className="p-4 flex-1">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">AI Predictions</h2>
               <Button
@@ -95,19 +96,20 @@ export default function Dashboard() {
           </Card>
 
           {/* Deposit & Withdraw section */}
-          <Card className="p-4">
+          <Card className="p-4 flex-1">
             <h2 className="text-lg font-semibold mb-4">Deposit & Withdraw</h2>
             {address ? (
-              <DepositWithdraw />
+                <DepositWithdraw />
             ) : (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">
-                  Connect your wallet to deposit or withdraw funds
-                </p>
-                <ConnectButton />
-              </div>
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">
+                    Connect your wallet to deposit or withdraw funds
+                  </p>
+                </div>
             )}
           </Card>
+          </div>
+
 
           <Card className="p-4">
             <TechnicalIndicators data={marketData} isLoading={marketLoading} />

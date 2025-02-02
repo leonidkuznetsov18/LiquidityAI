@@ -78,7 +78,7 @@ export function DepositWithdraw() {
           </h3>
           <div className="text-sm text-gray-500 space-y-1">
             <p>Wallet Balance: {balanceLoading ? '...' : `${Number(balance).toFixed(2)} USDC`}</p>
-            <p>Your Contract Balance: {contractLoading ? '...' : `${Number(userBalance).toFixed(2)} USDC`}</p>
+            <p>Contract Balance: {contractLoading ? '...' : `${Number(userBalance).toFixed(2)} USDC`}</p>
           </div>
         </div>
 
@@ -94,9 +94,9 @@ export function DepositWithdraw() {
           <Button
             onClick={handleAction}
             disabled={
-              processing || 
-              !amount || 
-              Number(amount) <= 0 || 
+              processing ||
+              !amount ||
+              Number(amount) <= 0 ||
               (isDepositing && Number(amount) > Number(balance)) ||
               (!isDepositing && Number(amount) > Number(userBalance))
             }
@@ -112,10 +112,11 @@ export function DepositWithdraw() {
         <Card key={key} className="p-4 space-y-2">
           <h4 className="font-medium">{meta.name}</h4>
           <div className="text-sm space-y-1">
-            <p>Pair: {meta.pair}</p>
-            <p>Pool Service: {meta.poolService}</p>
-            <p className="font-mono">Address: {meta.address}</p>
-            <p>Total Pool Balance: {contractLoading ? '...' : `${Number(totalSupply).toFixed(2)} USDC`}</p>
+            <p>Pair: <span className={'font-bold font-mono'}>{meta.pair}</span></p>
+            <p>Pool Service: <span className={'font-bold font-mono'}>{meta.poolService}</span></p>
+            <p>Contract Address: <span className={'font-bold font-mono'}>{meta.address}</span></p>
+            <p>Pool Address: <span className={'font-bold font-mono'}>{meta.poolAddress}</span></p>
+            <p>Total Pool Balance: {contractLoading ? '...' : <span className={'font-bold font-mono'}>${Number(totalSupply).toFixed(2)} USDC</span>}</p>
           </div>
         </Card>
       ))}
