@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Card } from './ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { ethers } from 'ethers';
-import { useWeb3, useUSDCBalance, useStrategyContract } from '@/lib/web3/hooks';
+import { useUSDCBalance, useStrategyContract } from '@/lib/web3/hooks';
 import { CONTRACT_METADATA } from '@/lib/web3/constants';
+import { useAccount } from '@/hooks/useAccount';
 
 export function DepositWithdraw() {
-  const { provider, account, error, connectWallet } = useWeb3();
-  const { balance, loading: balanceLoading } = useUSDCBalance(account, provider);
-  const { approveAndDeposit, requestWithdrawal } = useStrategyContract(account, provider);
+  const { address } = useAccount();
+  const { balance, loading: balanceLoading } = useUSDCBalance(address);
+  const { approveAndDeposit, requestWithdrawal } = useStrategyContract(address);
   const [amount, setAmount] = useState('');
   const [isDepositing, setIsDepositing] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -47,17 +47,6 @@ export function DepositWithdraw() {
       setProcessing(false);
     }
   };
-
-  if (!account) {
-    return (
-      <div className="space-y-4 p-4">
-        <Button onClick={connectWallet} disabled={processing}>
-          Connect Wallet
-        </Button>
-        {error && <p className="text-red-500">{error}</p>}
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4 p-4">

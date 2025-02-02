@@ -1,8 +1,6 @@
-// Contract addresses & ABIs
 export const CONTRACTS = {
   USDC: {
-    // BSC Testnet USDC contract address - replace with mainnet for production
-    address: '0x64544969ed7EBf5f083679233325356EbE738930',
+    address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
     abi: [
       'function balanceOf(address account) external view returns (uint256)',
       'function approve(address spender, uint256 amount) external returns (bool)',
@@ -29,4 +27,4 @@ export const CONTRACT_METADATA = {
   }
 };
 
-export const BSC_CHAIN_ID = 56; // Use 97 for testnet
+export const BSC_CHAIN_ID = 56; // BSC Mainnet
