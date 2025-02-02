@@ -19,20 +19,20 @@ export function DepositWithdraw() {
   const { toast } = useToast();
 
   const handleAction = async () => {
-    // if (!amount || Number(amount) <= 0) {
-    //   toast({ title: 'Please enter a valid amount', variant: 'destructive' });
-    //   return;
-    // }
+    if (!amount || Number(amount) <= 0) {
+      toast({ title: 'Please enter a valid amount', variant: 'destructive' });
+      return;
+    }
 
-    // if (Number(amount) > Number(balance) && isDepositing) {
-    //   toast({ title: 'Insufficient USDC balance', variant: 'destructive' });
-    //   return;
-    // }
+    if (Number(amount) > Number(balance) && isDepositing) {
+      toast({ title: 'Insufficient USDC balance', variant: 'destructive' });
+      return;
+    }
 
-    // if (!isDepositing && Number(amount) > Number(userBalance)) {
-    //   toast({ title: 'Insufficient contract balance', variant: 'destructive' });
-    //   return;
-    // }
+    if (!isDepositing && Number(amount) > Number(userBalance)) {
+      toast({ title: 'Insufficient contract balance', variant: 'destructive' });
+      return;
+    }
 
     try {
       setProcessing(true);
@@ -95,7 +95,13 @@ export function DepositWithdraw() {
           />
           <Button
             onClick={handleAction}
-      
+            disabled={
+              processing ||
+              !amount ||
+              Number(amount) <= 0 ||
+              (isDepositing && Number(amount) > Number(balance)) ||
+              (!isDepositing && Number(amount) > Number(userBalance))
+            }
             className="w-full"
           >
             {processing ? 'Processing...' : isDepositing ? 'Deposit' : 'Request Withdrawal'}
