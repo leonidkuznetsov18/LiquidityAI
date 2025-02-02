@@ -21,7 +21,7 @@ export function useUSDCBalance(account: string | null) {
 
       try {
         setLoading(true);
-        const contract = await getUsdcContract();
+        const contract = getUsdcContract();
         const rawBalance = await contract.balanceOf(account);
         const formatted = await formatTokenAmount(rawBalance, contract);
         setBalance(formatted);
@@ -47,8 +47,8 @@ export function useContractBalances(account: string | null) {
     const fetchBalances = async () => {
       try {
         setLoading(true);
-        const contract = await getStrategyContract();
-        const usdcContract = await getUsdcContract();
+        const contract = getStrategyContract();
+        const usdcContract = getUsdcContract();
 
         // Get total supply
         const rawTotalSupply = await contract.totalSupply();
@@ -84,29 +84,22 @@ export function useStrategyContract(account: string | null) {
         const signer = await getWalletSigner();
 
         // Create contract instances with signer
-        const usdcContract = await getUsdcContract(signer);
-        const strategyContract = await getStrategyContract(signer);
+        const usdcContract = getUsdcContract(signer);
+        const strategyContract = getStrategyContract(signer);
 
         // Parse amount with proper decimals
         const parsedAmount = await parseTokenAmount(amount, usdcContract);
 
         // Approve USDC spending
-        console.log('Approving USDC...');
         const approvalTx = await usdcContract.approve(
           CONTRACTS.STRATEGY.address,
           parsedAmount
         );
-        console.log('Approval transaction:', approvalTx);
         await approvalTx.wait();
-        console.log('Approval confirmed');
 
         // Deposit into strategy
-        console.log('Depositing to strategy...');
         const depositTx = await strategyContract.deposit(parsedAmount);
-        console.log('Deposit transaction:', depositTx);
         await depositTx.wait();
-        console.log('Deposit confirmed');
-
       } catch (error) {
         console.error('Transaction failed:', error);
         throw error;
@@ -122,17 +115,13 @@ export function useStrategyContract(account: string | null) {
       try {
         // Get signer from connected wallet
         const signer = await getWalletSigner();
-        const usdcContract = await getUsdcContract(signer);
-        const strategyContract = await getStrategyContract(signer);
+        const usdcContract = getUsdcContract(signer);
+        const strategyContract = getStrategyContract(signer);
 
         const parsedAmount = await parseTokenAmount(amount, usdcContract);
 
-        console.log('Requesting withdrawal...');
         const tx = await strategyContract.requestWithdrawal(parsedAmount);
-        console.log('Withdrawal request transaction:', tx);
         await tx.wait();
-        console.log('Withdrawal request confirmed');
-
       } catch (error) {
         console.error('Withdrawal request failed:', error);
         throw error;

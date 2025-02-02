@@ -1,7 +1,7 @@
 import { ethers, Contract } from 'ethers';
 import { CONTRACTS } from './constants';
 
-// BSC mainnet provider singleton - for read-only operations
+// BSC mainnet provider singleton
 export function getBscProvider() {
   return new ethers.JsonRpcProvider('https://rpc.ankr.com/bsc');
 }
@@ -9,12 +9,15 @@ export function getBscProvider() {
 // Get wallet provider and signer
 export async function getWalletProvider() {
   if (!window.ethereum) throw new Error('MetaMask not installed');
-  return new ethers.BrowserProvider(window.ethereum);
+
+  // Create Web3Provider from MetaMask
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  return provider;
 }
 
 export async function getWalletSigner() {
   const provider = await getWalletProvider();
-  return provider.getSigner();
+  return await provider.getSigner();
 }
 
 // Contract factory function
@@ -27,20 +30,20 @@ export function createContract(
 }
 
 // Get USDC contract instance
-export async function getUsdcContract(signer?: ethers.Signer) {
+export function getUsdcContract(signerOrProvider = getBscProvider()) {
   return createContract(
     CONTRACTS.USDC.address,
     CONTRACTS.USDC.abi,
-    signer || getBscProvider()
+    signerOrProvider
   );
 }
 
 // Get strategy contract instance
-export async function getStrategyContract(signer?: ethers.Signer) {
+export function getStrategyContract(signerOrProvider = getBscProvider()) {
   return createContract(
     CONTRACTS.STRATEGY.address,
     CONTRACTS.STRATEGY.abi,
-    signer || getBscProvider()
+    signerOrProvider
   );
 }
 
