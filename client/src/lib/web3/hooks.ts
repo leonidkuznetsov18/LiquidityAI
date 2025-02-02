@@ -91,15 +91,22 @@ export function useStrategyContract(account: string | null) {
         const parsedAmount = await parseTokenAmount(amount, usdcContract);
 
         // Approve USDC spending
+        console.log('Approving USDC spend...');
         const approvalTx = await usdcContract.approve(
           CONTRACTS.STRATEGY.address,
           parsedAmount
         );
+        console.log('Approval transaction sent:', approvalTx.hash);
         await approvalTx.wait();
+        console.log('Approval confirmed');
 
         // Deposit into strategy
+        console.log('Depositing into strategy...');
         const depositTx = await strategyContract.deposit(parsedAmount);
+        console.log('Deposit transaction sent:', depositTx.hash);
         await depositTx.wait();
+        console.log('Deposit confirmed');
+
       } catch (error) {
         console.error('Transaction failed:', error);
         throw error;
@@ -120,8 +127,11 @@ export function useStrategyContract(account: string | null) {
 
         const parsedAmount = await parseTokenAmount(amount, usdcContract);
 
+        console.log('Requesting withdrawal...');
         const tx = await strategyContract.requestWithdrawal(parsedAmount);
+        console.log('Withdrawal request sent:', tx.hash);
         await tx.wait();
+        console.log('Withdrawal request confirmed');
       } catch (error) {
         console.error('Withdrawal request failed:', error);
         throw error;

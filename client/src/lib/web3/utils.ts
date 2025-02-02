@@ -3,16 +3,26 @@ import { CONTRACTS } from './constants';
 
 // BSC mainnet provider singleton
 export function getBscProvider() {
-  return new ethers.JsonRpcProvider('https://rpc.ankr.com/bsc');
+  return new ethers.JsonRpcProvider('https://bsc-dataseed.binance.org/');
 }
 
 // Get wallet provider and signer
 export async function getWalletProvider() {
   if (!window.ethereum) throw new Error('MetaMask not installed');
 
-  // Create Web3Provider from MetaMask
-  const provider = new ethers.BrowserProvider(window.ethereum);
-  return provider;
+  try {
+    // Request account access
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+
+    // Create Web3Provider from MetaMask
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    return provider;
+  } catch (error) {
+    if (error.code === 4001) {
+      throw new Error('Please connect to MetaMask.');
+    }
+    throw error;
+  }
 }
 
 export async function getWalletSigner() {

@@ -45,6 +45,7 @@ export function DepositWithdraw() {
       }
       setAmount('');
     } catch (err) {
+      console.error(err);
       toast({
         title: 'Transaction failed',
         description: err instanceof Error ? err.message : 'Unknown error occurred',
